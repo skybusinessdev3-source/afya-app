@@ -1,3 +1,80 @@
-from django.shortcuts import render
+import json
+from decimal import Decimal, InvalidOperation
 
-# Create your views here.
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+
+from apps.audit.models import AuditLog
+from apps.audit.utils import log_event
+from apps.finance.models import Invoice
+from apps.settings_app.models import Company
+from .models import Patient
+
+
+def get_client_ip(request):
+    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    return x_forwarded.split(',')[0] if x_forwarded else request.META.get('REMOTE_ADDR')
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def patient_create(request):
+    """Crée un patient + (optionnel) facture d'ouverture. Retourne la fiche prête à l'emploi."""
+    try:
+        data = json.loads(request.body)
+
+        # Champs obligatoires (§23 : le backend refuse les données incomplètes)
+        for field in ('last_name', 'first_name', 'sex'):
+            if not data.get(field):
+                return JsonResponse({'success': False, 'message': f"Champ manquant : {field}."}, status=400)
+
+        patient = Patient.objects.create(
+            last_name=data['last_name'].strip(),
+            middle_name=data.get('middle_name', '').strip(),
+            first_name=data['first_name'].strip(),
+            sex=data['sex'],
+            birth_place=data.get('birth_place', '').strip(),
+            birth_date=data.get('birth_date') or None,
+            company_id=data.get('company_id') or None,
+            phone=data.get('phone', '').strip(),
+            day_pattern=data.get('day_pattern', 'ALL'),
+            sessions_prescribed=int(data.get('sessions_prescribed', 0) or 0),
+        )
+        log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                  module='patients', obj=patient, ip_address=get_client_ip(request))
+
+        # Facture d'ouverture (montant à payer initial, optionnel)
+        amount = Decimal(str(data.get('amount_due', '0') or '0'))
+        if amount > 0:
+            invoice = Invoice.objects.create(
+                patient=patient,
+                label="Frais initiaux — inscription",
+                amount_original=amount,
+                currency_original=data.get('currency', 'USD'),
+                created_by=request.user,
+            )
+            log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                      module='finance', obj=invoice, ip_address=get_client_ip(request))
+
+        return JsonResponse({
+            'success': True,
+            'message': f"Patient « {patient.full_name} » enregistré.",
+            'patient': {
+                'id': patient.id,
+                'name': patient.full_name,
+                'sex': patient.get_sex_display(),
+                'phone': patient.phone or '—',
+                'company': patient.company.name if patient.company else '—',
+                'sessions_done': patient.sessions_done,
+                'sessions_prescribed': patient.sessions_prescribed,
+                'sessions_remaining': patient.sessions_remaining,
+            },
+        })
+
+    except (InvalidOperation, ValueError):
+        return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)
+    except Company.DoesNotExist:
+        return JsonResponse({'success': False, 'message': "Entreprise introuvable."}, status=400)

@@ -1,0 +1,378 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- ===== Colonne gauche : recherche + fiche patient ===== -->
+    <div class="lg:col-span-1 space-y-4">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+            <h3 class="font-bold mb-3 flex items-center gap-2">
+                <i data-lucide="search" class="w-5 h-5 text-brand-600"></i> Rechercher un patient
+            </h3>
+            <input type="text" id="search-input" placeholder="Nom, prénom ou téléphone…"
+                   class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-brand-500 outline-none"
+                   autocomplete="off">
+            <div id="search-results" class="mt-3 space-y-2"></div>
+        </div>
+
+        <div id="patient-detail" class="hidden bg-white dark:bg-gray-900 rounded-2xl p-4 border border-brand-300 dark:border-brand-800 animate-pop-in"></div>
+    </div>
+
+    <!-- ===== Colonne droite : séances du jour ===== -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i data-lucide="stethoscope" class="w-5 h-5 text-brand-600"></i> Séances du {{ today|date:"d/m/Y" }}
+                </h3>
+                <span class="text-sm px-3 py-1 rounded-full bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold">{{ count_today }}</span>
+            </div>
+            <div class="divide-y divide-gray-100 dark:divide-gray-800">
+                {% for s in sessions_today %}
+                <div class="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                    <div>
+                        <p class="font-semibold">{{ s.patient }}</p>
+                        <p class="text-sm text-gray-400">{{ s.get_motif_display }} — {{ s.professional|default:"—" }}</p>
+                    </div>
+                    <span class="text-sm px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-800">{{ s.get_status_display }}</span>
+                </div>
+                {% empty %}
+                <p class="p-6 text-center text-gray-400 text-sm">Aucune séance enregistrée aujourd'hui.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- ===== Dépenses du jour ===== -->
+        <div class="mt-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.2s">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i data-lucide="wallet" class="w-5 h-5 text-red-500"></i> Dépenses du {{ today|date:"d/m/Y" }}
+                </h3>
+                <span class="text-sm px-3 py-1 rounded-full bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 font-semibold">{{ expenses_total_usd }} $</span>
+            </div>
+            <div class="p-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2 items-center">
+                    <input id="e-label" type="text" placeholder="Libellé * (ex: transport cleaner)"
+                        class="lg:col-span-3 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <div class="flex gap-2 lg:col-span-7">
+                        <input id="e-amount" type="number" min="0" step="0.01" placeholder="Montant *"
+                            class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                        <select id="e-currency" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-brand-400 dark:border-brand-700 bg-white dark:bg-gray-800 text-sm font-semibold text-brand-700 dark:text-brand-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                            <option value="USD">$ USD</option>
+                            <option value="FC">FC</option>
+                        </select>
+                    </div>
+                    <button onclick="submitExpense(this)"
+                            class="lg:col-span-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-red-700 text-white font-semibold text-sm active:scale-[.98]">
+                        Ajouter
+                    </button>
+                </div>
+                <div id="e-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+
+                <div class="mt-4 divide-y divide-gray-100 dark:divide-gray-800">
+                    {% for e in expenses_today %}
+                    <div class="py-2.5 flex items-center justify-between text-sm">
+                        <div>
+                            <span class="font-medium">{{ e.label }}</span>
+                            <span class="text-gray-400">— {{ e.person|default:e.person_other|default:"—" }}</span>
+                        </div>
+                        <span class="font-semibold text-red-500">{{ e.amount_original }} {{ e.currency_original }}</span>
+                    </div>
+                    {% empty %}
+                    <p class="py-3 text-center text-gray-400 text-sm">Aucune dépense aujourd'hui.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL NOUVEAU PATIENT ================= -->
+<div id="patient-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closePatientModal()"></div>
+    <div class="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-5 h-5 text-brand-600"></i> Nouveau patient
+            </h3>
+            <button onclick="closePatientModal()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <input id="np-last-name" type="text" placeholder="Nom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="np-middle-name" type="text" placeholder="Post-nom" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="np-first-name" type="text" placeholder="Prénom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="np-sex" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">Sexe *</option>
+                <option value="M">Masculin</option>
+                <option value="F">Féminin</option>
+            </select>
+            <input id="np-birth-place" type="text" placeholder="Lieu de naissance" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="np-birth-date" type="date" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="np-company" class="col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">— Entreprise —</option>
+                {% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+            <input id="np-phone" type="tel" placeholder="Téléphone" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="np-day-pattern" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="ALL">Tous les jours</option>
+                <option value="EVEN">Jours pairs</option>
+                <option value="ODD">Jours impairs</option>
+            </select>
+            <input id="np-sessions" type="number" min="0" placeholder="Séances prescrites" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <div class="flex gap-2">
+                <input id="np-amount" type="number" min="0" step="0.01" placeholder="Montant à payer" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <select id="np-currency" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-brand-400 dark:border-brand-700 bg-white dark:bg-gray-800 text-sm font-semibold text-brand-700 dark:text-brand-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                    <option value="USD">$ USD</option>
+                    <option value="FC">FC</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="np-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+
+        <button onclick="submitNewPatient(this)"
+                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+            Enregistrer le patient
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let timer;
+const input = document.getElementById('search-input');
+const box = document.getElementById('search-results');
+
+/* ================= RECHERCHE INSTANTANÉE ================= */
+input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { box.innerHTML = ''; return; }
+    timer = setTimeout(async () => {
+        const res = await fetch(`{% url 'centre:patient_search' %}?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        box.innerHTML = data.results.length
+            ? data.results.map(p => `
+                <button onclick='showPatient(${JSON.stringify(p)})'
+                        class="w-full text-left px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="font-semibold truncate">${p.name}</p>
+                        <p class="text-xs text-gray-400">${p.sex} · ${p.phone} · ${p.company}</p>
+                    </div>
+                    <span class="text-xs shrink-0 px-2 py-1 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold">
+                        ${p.sessions_done}/${p.sessions_prescribed}
+                    </span>
+                </button>`).join('')
+            : `<div class="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-sm">
+                   Patient introuvable — <button onclick="openPatientModal()" class="font-semibold underline">enregistrer un nouveau patient</button>
+               </div>`;
+    }, 250);
+});
+
+/* ================= FICHE PATIENT + FORMULAIRE SÉANCE ================= */
+function showPatient(p) {
+    const detail = document.getElementById('patient-detail');
+    detail.classList.remove('hidden');
+    detail.dataset.patientId = p.id;
+    detail.innerHTML = `
+        <h3 class="font-bold mb-3 flex items-center gap-2">
+            <i data-lucide="user-round" class="w-5 h-5 text-brand-600"></i> ${p.name}
+        </h3>
+        <div class="grid grid-cols-2 gap-2 text-sm mb-3">
+            <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800">Sexe<br><b>${p.sex}</b></div>
+            <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800">Téléphone<br><b>${p.phone}</b></div>
+            <div class="p-2 rounded-lg bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300">
+                Séances<br><b id="session-counter">${p.sessions_done} faites / ${p.sessions_remaining} restantes</b>
+            </div>
+            <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800">Entreprise<br><b>${p.company}</b></div>
+        </div>
+
+        <div class="space-y-2">
+            <select id="f-motif" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="KINE">Séance kiné</option>
+                <option value="CONSULTATION">Consultation</option>
+                <option value="EVALUATION">Évaluation</option>
+                <option value="LABORATORY">Laboratoire</option>
+                <option value="OTHER">Autre</option>
+            </select>
+            <input id="f-motif-other" type="text" placeholder="Précisez (si autre)…"
+                   class="hidden w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="f-service" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">— Service / tarif —</option>
+                {% for s in services %}<option value="{{ s.id }}">{{ s.name }} ({{ s.price_usd }}$)</option>{% endfor %}
+            </select>
+            <select id="f-professional" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">— Professionnel —</option>
+                {% for st in staff_list %}<option value="{{ st.id }}">{{ st }}</option>{% endfor %}
+            </select>
+            <div class="flex gap-2">
+                <input id="f-amount" type="number" min="0" step="0.01" placeholder="Montant payé (0 si rien)"
+                       class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <select id="f-currency" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-brand-400 dark:border-brand-700 bg-white dark:bg-gray-800 text-sm font-semibold text-brand-700 dark:text-brand-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                    <option value="USD">$ USD</option>
+                    <option value="FC">FC</option>
+                </select>
+            </div>
+            <input id="f-notes" type="text" placeholder="Notes (optionnel)…"
+                   class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+        </div>
+
+        <div id="form-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+
+        <button onclick="submitSession(this)"
+                class="mt-3 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+            Enregistrer la séance du jour
+        </button>`;
+    lucide.createIcons();
+    detail.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+
+    document.getElementById('f-motif').addEventListener('change', (e) => {
+        document.getElementById('f-motif-other').classList.toggle('hidden', e.target.value !== 'OTHER');
+    });
+}
+
+/* ================= ENVOI DE LA SÉANCE ================= */
+async function submitSession(btn) {
+    const detail = document.getElementById('patient-detail');
+    const feedback = document.getElementById('form-feedback');
+    btn.disabled = true;
+
+    const payload = {
+        patient_id: detail.dataset.patientId,
+        motif: document.getElementById('f-motif').value,
+        motif_other: document.getElementById('f-motif-other').value,
+        service_id: document.getElementById('f-service').value,
+        professional_id: document.getElementById('f-professional').value,
+        amount_paid: document.getElementById('f-amount').value || '0',
+        currency: document.getElementById('f-currency').value,
+        notes: document.getElementById('f-notes').value,
+    };
+
+    const res = await fetch("{% url 'centre:register_session' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    feedback.classList.remove('hidden',
+        'bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+    if (data.success) {
+        feedback.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+        feedback.textContent = '✓ ' + data.message;
+        document.getElementById('session-counter').textContent =
+            `${data.sessions_done} faites / ${data.sessions_remaining} restantes`;
+        document.getElementById('f-amount').value = '';
+        setTimeout(() => location.reload(), 1200);
+    } else {
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+/* ================= MODAL NOUVEAU PATIENT ================= */
+function openPatientModal() {
+    document.getElementById('patient-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closePatientModal() {
+    document.getElementById('patient-modal').classList.add('hidden');
+}
+
+async function submitNewPatient(btn) {
+    const feedback = document.getElementById('np-feedback');
+    btn.disabled = true;
+
+    const payload = {
+        last_name: document.getElementById('np-last-name').value,
+        middle_name: document.getElementById('np-middle-name').value,
+        first_name: document.getElementById('np-first-name').value,
+        sex: document.getElementById('np-sex').value,
+        birth_place: document.getElementById('np-birth-place').value,
+        birth_date: document.getElementById('np-birth-date').value || null,
+        company_id: document.getElementById('np-company').value || null,
+        phone: document.getElementById('np-phone').value,
+        day_pattern: document.getElementById('np-day-pattern').value,
+        sessions_prescribed: document.getElementById('np-sessions').value || 0,
+        amount_due: document.getElementById('np-amount').value || '0',
+        currency: document.getElementById('np-currency').value,
+    };
+
+    const res = await fetch("{% url 'patients:create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    feedback.classList.remove('hidden',
+        'bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+    if (data.success) {
+        feedback.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+        feedback.textContent = '✓ ' + data.message;
+        closePatientModal();
+        showPatient(data.patient);
+    } else {
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+/* ================= DÉPENSES ================= */
+async function submitExpense(btn) {
+    const feedback = document.getElementById('e-feedback');
+    btn.disabled = true;
+
+    const payload = {
+        label: document.getElementById('e-label').value,
+        // person_id: document.getElementById('e-person').value || null,
+        amount: document.getElementById('e-amount').value,
+        currency: document.getElementById('e-currency').value,
+    };
+
+    const res = await fetch("{% url 'finance:expense_create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    feedback.classList.remove('hidden',
+        'bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+    if (data.success) {
+        feedback.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+        feedback.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 800);
+    } else {
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+/* ================= CSRF ================= */
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie) {
+        document.cookie.split(';').forEach(c => {
+            const [k, v] = c.trim().split('=');
+            if (k === name) cookieValue = decodeURIComponent(v);
+        });
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

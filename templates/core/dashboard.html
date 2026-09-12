@@ -1,53 +1,148 @@
 {% extends 'base.html' %}
 {% block page_title %}Tableau de bord{% endblock %}
+
 {% block content %}
-<div class="stagger grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+<div class="stagger grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
 
-    <div class="hover-lift bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
-        <div class="flex items-center justify-between">
-            <p class="text-xs sm:text-sm text-gray-400">Patients du jour</p>
-            <div class="w-10 h-10 rounded-xl bg-brand-100 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
-                <i data-lucide="users" class="w-5 h-5"></i>
+    <div class="hover-lift min-w-0 bg-white dark:bg-gray-900 rounded-2xl p-3 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between gap-2">
+            <p class="text-[11px] sm:text-sm text-gray-400 truncate">Patients du jour</p>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-brand-100 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                <i data-lucide="users" class="w-4 h-4 sm:w-5 sm:h-5"></i>
             </div>
         </div>
-        <p class="text-2xl sm:text-3xl font-extrabold mt-2 text-brand-600 dark:text-brand-400">—</p>
+        <p class="text-xl sm:text-3xl font-extrabold mt-2 text-brand-600 dark:text-brand-400">{{ patients_today }}</p>
+        <p class="text-[11px] text-gray-400 mt-1">{{ sessions_today_count }} séance(s)</p>
     </div>
 
-    <div class="hover-lift bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
-        <div class="flex items-center justify-between">
-            <p class="text-xs sm:text-sm text-gray-400">Recettes ($)</p>
-            <div class="w-10 h-10 rounded-xl bg-brand-100 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
-                <i data-lucide="banknote" class="w-5 h-5"></i>
+    <div class="hover-lift min-w-0 bg-white dark:bg-gray-900 rounded-2xl p-3 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between gap-2">
+            <p class="text-[11px] sm:text-sm text-gray-400 truncate">Recettes ($)</p>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-brand-100 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                <i data-lucide="banknote" class="w-4 h-4 sm:w-5 sm:h-5"></i>
             </div>
         </div>
-        <p class="text-2xl sm:text-3xl font-extrabold mt-2 text-brand-600 dark:text-brand-400">—</p>
+        <p class="text-xl sm:text-3xl font-extrabold mt-2 text-brand-600 dark:text-brand-400">{{ rev_usd }} $</p>
     </div>
 
-    <div class="hover-lift bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
-        <div class="flex items-center justify-between">
-            <p class="text-xs sm:text-sm text-gray-400">Recettes (FC)</p>
-            <div class="w-10 h-10 rounded-xl bg-brand-100 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
-                <i data-lucide="coins" class="w-5 h-5"></i>
+    <div class="hover-lift min-w-0 bg-white dark:bg-gray-900 rounded-2xl p-3 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between gap-2">
+            <p class="text-[11px] sm:text-sm text-gray-400 truncate">Recettes (FC)</p>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-brand-100 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                <i data-lucide="coins" class="w-4 h-4 sm:w-5 sm:h-5"></i>
             </div>
         </div>
-        <p class="text-2xl sm:text-3xl font-extrabold mt-2 text-brand-600 dark:text-brand-400">—</p>
+        <p class="text-xl sm:text-3xl font-extrabold mt-2 text-brand-600 dark:text-brand-400">{{ rev_fc|floatformat:0 }} FC</p>
     </div>
 
-    <div class="hover-lift bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
-        <div class="flex items-center justify-between">
-            <p class="text-xs sm:text-sm text-gray-400">Dépenses</p>
-            <div class="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950 flex items-center justify-center text-red-500">
-                <i data-lucide="trending-down" class="w-5 h-5"></i>
+    <div class="hover-lift min-w-0 bg-white dark:bg-gray-900 rounded-2xl p-3 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between gap-2">
+            <p class="text-[11px] sm:text-sm text-gray-400 truncate">Dépenses ($)</p>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-red-100 dark:bg-red-950 flex items-center justify-center text-red-500">
+                <i data-lucide="trending-down" class="w-4 h-4 sm:w-5 sm:h-5"></i>
             </div>
         </div>
-        <p class="text-2xl sm:text-3xl font-extrabold mt-2 text-red-500">—</p>
+        <p class="text-xl sm:text-3xl font-extrabold mt-2 text-red-500">{{ exp_usd }} $</p>
+    </div>
+
+    <div class="hover-lift min-w-0 bg-white dark:bg-gray-900 rounded-2xl p-3 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between gap-2">
+            <p class="text-[11px] sm:text-sm text-gray-400 truncate">Dépenses (FC)</p>
+            <div class="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-red-100 dark:bg-red-950 flex items-center justify-center text-red-500">
+                <i data-lucide="hand-coins" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+            </div>
+        </div>
+        <p class="text-xl sm:text-3xl font-extrabold mt-2 text-red-500">{{ exp_fc|floatformat:0 }} FC</p>
     </div>
 </div>
 
-<div class="animate-fade-up mt-6 bg-gradient-to-r from-brand-600 to-brand-800 rounded-2xl p-6 text-white shadow-xl shadow-brand-600/20" style="animation-delay:.4s">
-    <h3 class="font-bold text-lg flex items-center gap-2">
-        <i data-lucide="sparkles" class="w-5 h-5"></i> Bienvenue sur AFYA APP
+<!-- ===== Graphique : recettes & dépenses des 7 derniers jours ===== -->
+<div class="animate-fade-up mt-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-4 sm:p-5" style="animation-delay:.35s">
+    <h3 class="font-bold mb-3 flex items-center gap-2">
+        <i data-lucide="bar-chart-3" class="w-5 h-5 text-brand-600"></i> Recettes &amp; dépenses — 7 derniers jours
+        <span class="text-xs font-normal text-gray-400">(par devise, jamais additionnées)</span>
     </h3>
-    <p class="text-brand-100 text-sm mt-1">Les statistiques en direct arrivent avec le module « Centre (jour) » — prochaine étape.</p>
+    <div class="relative h-64 sm:h-72">
+        <canvas id="revenue-chart"></canvas>
+    </div>
 </div>
+
+<div class="animate-fade-up mt-4 bg-gradient-to-r from-brand-600 to-brand-800 rounded-2xl p-6 text-white shadow-xl shadow-brand-600/20" style="animation-delay:.45s">
+    <h3 class="font-bold text-lg flex items-center gap-2">
+        <i data-lucide="sparkles" class="w-5 h-5"></i> Activité du {{ today|date:"d/m/Y" }}
+    </h3>
+    <p class="text-brand-100 text-sm mt-1">
+        Solde net du jour : <b>{{ net_usd }} $ + {{ net_fc|floatformat:0 }} FC</b> (recettes − dépenses, par devise)
+    </p>
+    <a href="{% url 'centre:day' %}" class="inline-flex items-center gap-2 mt-4 px-5 py-2.5 rounded-xl bg-white text-brand-700 font-semibold text-sm hover:bg-brand-50 transition active:scale-[.98]">
+        <i data-lucide="stethoscope" class="w-4 h-4"></i> Ouvrir la page Centre
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const isDark = document.documentElement.classList.contains('dark');
+    const tickColor = isDark ? '#9ca3af' : '#6b7280';
+    const gridColor = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)';
+
+    new Chart(document.getElementById('revenue-chart'), {
+        type: 'bar',
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [
+                {
+                    label: 'Recettes ($)',
+                    data: {{ chart_usd|safe }},
+                    backgroundColor: 'rgba(0, 209, 102, .85)',
+                    borderRadius: 6,
+                },
+                {
+                    label: 'Recettes (FC)',
+                    data: {{ chart_fc|safe }},
+                    backgroundColor: 'rgba(75, 248, 159, .45)',
+                    borderRadius: 6,
+                },
+                {
+                    label: 'Dépenses ($)',
+                    data: {{ chart_exp_usd|safe }},
+                    backgroundColor: 'rgba(239, 68, 68, .85)',
+                    borderRadius: 6,
+                },
+                {
+                    label: 'Dépenses (FC)',
+                    data: {{ chart_exp_fc|safe }},
+                    backgroundColor: 'rgba(252, 165, 165, .55)',
+                    borderRadius: 6,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: tickColor } },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.dataset.label} : ${ctx.parsed.y.toLocaleString('fr-FR')}`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    ticks: { color: tickColor },
+                    grid: { display: false },
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: tickColor },
+                    grid: { color: gridColor },
+                },
+            },
+        },
+    });
+})();
+</script>
 {% endblock %}

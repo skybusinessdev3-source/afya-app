@@ -151,6 +151,7 @@
 
     <!-- ================= SIDEBAR (desktop) ================= -->
     {% if user.is_authenticated %}
+    {% with ns=request.resolver_match.namespace un=request.resolver_match.url_name %}
     <aside class="hidden lg:flex w-64 flex-col bg-white dark:bg-gray-900/80 dark:backdrop-blur-xl border-r border-gray-200 dark:border-gray-800/80 sticky top-0 h-screen animate-slide-in-left">
         <div class="h-16 flex items-center gap-3 px-5 border-b border-gray-200 dark:border-gray-800/80">
             <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-lg shadow-brand-500/40 animate-glow">
@@ -163,11 +164,10 @@
         </div>
 
         <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1 text-sm">
-            {% with path=request.path %}
-            <a href="{% url 'dashboard' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if path == '/' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+            <a href="{% url 'dashboard' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if un == 'dashboard' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="layout-dashboard" class="w-5 h-5"></i> Tableau de bord
             </a>
-            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <a href="{% url 'centre:day' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'centre' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="stethoscope" class="w-5 h-5"></i> Centre (jour)
             </a>
             <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
@@ -194,7 +194,6 @@
             <a href="{% url 'admin:index' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
                 <i data-lucide="settings" class="w-5 h-5"></i> Administration
             </a>
-            {% endwith %}
         </nav>
 
         <div class="p-3 border-t border-gray-200 dark:border-gray-800/80">
@@ -215,6 +214,7 @@
             </form>
         </div>
     </aside>
+    {% endwith %}
     {% endif %}
 
     <!-- ================= ZONE PRINCIPALE ================= -->
@@ -274,6 +274,7 @@
 
 <!-- ================= TIROIR LATÉRAL (mobile/tablette) ================= -->
 {% if user.is_authenticated %}
+{% with ns=request.resolver_match.namespace %}
 <div id="drawer-backdrop" onclick="closeDrawer()"
      class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 lg:hidden"></div>
 
@@ -294,7 +295,7 @@
 
     <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1 text-sm">
         <p class="px-3 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">Opérations</p>
-        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+        <a href="{% url 'centre:day' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'centre' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="stethoscope" class="w-5 h-5"></i> Centre (jour)
         </a>
         <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
@@ -340,14 +341,16 @@
         </form>
     </div>
 </aside>
+{% endwith %}
 {% endif %}
 
 <!-- ================= NAVIGATION BASSE flottante (mobile/tablette) ================= -->
 {% if user.is_authenticated %}
+{% with un=request.resolver_match.url_name %}
 <nav class="lg:hidden fixed bottom-4 inset-x-4 z-40">
     <div class="bottom-nav bg-white/85 dark:bg-gray-900/85 border border-gray-200 dark:border-gray-700/80 rounded-2xl shadow-2xl shadow-black/20 flex items-end justify-around px-2 pt-3 pb-2">
 
-        <a href="{% url 'dashboard' %}" class="bottom-item {% if request.path == '/' %}active{% endif %} flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
+        <a href="{% url 'dashboard' %}" class="bottom-item {% if un == 'dashboard' %}active{% endif %} flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
             <i data-lucide="home" class="w-6 h-6"></i>
             <span class="text-[10px] font-medium">Accueil</span>
             <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>
@@ -367,9 +370,9 @@
             </button>
             <div id="quick-actions" class="hidden absolute bottom-16 left-1/2 -translate-x-1/2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-2 space-y-1 animate-pop-in">
                 <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="user-plus" class="w-4 h-4 text-brand-600"></i> Nouveau patient</a>
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="stethoscope" class="w-4 h-4 text-brand-600"></i> Nouvelle séance</a>
+                <a href="{% url 'centre:day' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="stethoscope" class="w-4 h-4 text-brand-600"></i> Nouvelle séance</a>
                 <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="pill" class="w-4 h-4 text-brand-600"></i> Vente pharmacie</a>
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="wallet" class="w-4 h-4 text-brand-600"></i> Dépense</a>
+                <a href="{% url 'centre:day' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="wallet" class="w-4 h-4 text-brand-600"></i> Dépense</a>
             </div>
         </div>
 
@@ -387,6 +390,7 @@
         </a>
     </div>
 </nav>
+{% endwith %}
 {% endif %}
 
 <script>
