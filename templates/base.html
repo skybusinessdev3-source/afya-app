@@ -1,0 +1,397 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CRF-MK — AFYA APP{% endblock %}</title>
+
+    <!-- Thème appliqué AVANT le rendu (zéro flash) -->
+    <script>
+        (function () {
+            const stored = localStorage.getItem('afya-theme');
+            if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50:  '#eafff3', 100: '#c8ffe0', 200: '#92ffc4',
+                            300: '#4bf89f', 400: '#13e97c', 500: '#00d166',
+                            600: '#00ad53', 700: '#018945', 800: '#066c39',
+                            900: '#075931', 950: '#01321b',
+                        }
+                    },
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+                }
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('afya-theme', isDark ? 'dark' : 'light');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('afya-theme')) {
+                document.documentElement.classList.toggle('dark', e.matches);
+            }
+        });
+
+        /* Tiroir latéral (mobile) */
+        function openDrawer() {
+            document.getElementById('drawer').classList.remove('-translate-x-full');
+            const b = document.getElementById('drawer-backdrop');
+            b.classList.remove('opacity-0', 'pointer-events-none');
+        }
+        function closeDrawer() {
+            document.getElementById('drawer').classList.add('-translate-x-full');
+            const b = document.getElementById('drawer-backdrop');
+            b.classList.add('opacity-0', 'pointer-events-none');
+        }
+        /* Actions rapides du FAB */
+        function toggleQuickActions() {
+            document.getElementById('quick-actions').classList.toggle('hidden');
+        }
+    </script>
+
+    <style>
+        /* ================= ANIMATIONS ================= */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes popIn {
+            0%   { transform: scale(.6); opacity: 0; }
+            70%  { transform: scale(1.08); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes floatY {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-6px); }
+        }
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-24px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 0 6px rgba(0, 209, 102, .4); }
+            50%      { box-shadow: 0 0 18px rgba(0, 209, 102, .8); }
+        }
+
+        .animate-fade-up       { animation: fadeUp .5s cubic-bezier(.22,1,.36,1) both; }
+        .animate-pop-in        { animation: popIn .45s cubic-bezier(.34,1.56,.64,1) both; }
+        .animate-slide-in-left { animation: slideInLeft .4s ease both; }
+        .animate-glow          { animation: glowPulse 2.5s ease-in-out infinite; }
+
+        /* Entrée en cascade */
+        .stagger > * { animation: fadeUp .55s cubic-bezier(.22,1,.36,1) both; }
+        .stagger > *:nth-child(1) { animation-delay: .05s; }
+        .stagger > *:nth-child(2) { animation-delay: .12s; }
+        .stagger > *:nth-child(3) { animation-delay: .19s; }
+        .stagger > *:nth-child(4) { animation-delay: .26s; }
+        .stagger > *:nth-child(5) { animation-delay: .33s; }
+        .stagger > *:nth-child(6) { animation-delay: .40s; }
+
+        /* Liens sidebar : rebond d'icône + glissement */
+        .side-link { transition: background-color .25s, color .25s, transform .2s, box-shadow .25s; }
+        .side-link svg { transition: transform .35s cubic-bezier(.34,1.56,.64,1); }
+        .side-link:hover { transform: translateX(4px); }
+        .side-link:hover svg { transform: scale(1.25) rotate(-8deg); }
+        .side-link.active-link {
+            background: linear-gradient(90deg, rgba(0,209,102,.22), rgba(0,209,102,.06));
+            color: #4bf89f;
+            font-weight: 600;
+            box-shadow: inset 3px 0 0 #00d166, 0 0 14px rgba(0,209,102,.25);
+        }
+
+        /* Cartes : soulèvement */
+        .hover-lift { transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s; }
+        .hover-lift:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px -10px rgba(0, 173, 83, .35);
+        }
+
+        /* ================= NAVIGATION BASSE ================= */
+        .bottom-nav {
+            backdrop-filter: blur(20px) saturate(1.4);
+            -webkit-backdrop-filter: blur(20px) saturate(1.4);
+        }
+        .bottom-item { transition: color .25s, transform .25s cubic-bezier(.34,1.56,.64,1); }
+        .bottom-item:active { transform: scale(.85); }
+        .bottom-item.active { color: #4bf89f; }
+        .bottom-item.active svg { animation: popIn .35s cubic-bezier(.34,1.56,.64,1); }
+        .bottom-item .dot { transition: opacity .3s, transform .3s; opacity: 0; transform: scale(0); }
+        .bottom-item.active .dot { opacity: 1; transform: scale(1); }
+
+        .fab {
+            animation: floatY 3.5s ease-in-out infinite;
+            box-shadow: 0 8px 24px -6px rgba(0, 209, 102, .55);
+        }
+        .fab:active { transform: scale(.9); }
+
+        a, button { transition: all .2s ease; }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-950 text-gray-800 dark:text-gray-100 font-sans antialiased overflow-x-hidden">
+
+<div class="flex min-h-screen">
+
+    <!-- ================= SIDEBAR (desktop) ================= -->
+    {% if user.is_authenticated %}
+    <aside class="hidden lg:flex w-64 flex-col bg-white dark:bg-gray-900/80 dark:backdrop-blur-xl border-r border-gray-200 dark:border-gray-800/80 sticky top-0 h-screen animate-slide-in-left">
+        <div class="h-16 flex items-center gap-3 px-5 border-b border-gray-200 dark:border-gray-800/80">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-lg shadow-brand-500/40 animate-glow">
+                <i data-lucide="activity" class="w-6 h-6"></i>
+            </div>
+            <div class="leading-tight">
+                <p class="font-extrabold text-brand-700 dark:text-brand-400">CRF-MK</p>
+                <p class="text-[11px] text-gray-400">AFYA APP</p>
+            </div>
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1 text-sm">
+            {% with path=request.path %}
+            <a href="{% url 'dashboard' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if path == '/' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i> Tableau de bord
+            </a>
+            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+                <i data-lucide="stethoscope" class="w-5 h-5"></i> Centre (jour)
+            </a>
+            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+                <i data-lucide="users" class="w-5 h-5"></i> Patients
+            </a>
+            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+                <i data-lucide="pill" class="w-5 h-5"></i> Pharmacie
+            </a>
+            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+                <i data-lucide="flask-conical" class="w-5 h-5"></i> Laboratoire
+            </a>
+            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+                <i data-lucide="house-plus" class="w-5 h-5"></i> Soins à domicile
+            </a>
+            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+                <i data-lucide="calendar-days" class="w-5 h-5"></i> Rendez-vous
+            </a>
+            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+                <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
+            </a>
+            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+                <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
+            </a>
+            <a href="{% url 'admin:index' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+                <i data-lucide="settings" class="w-5 h-5"></i> Administration
+            </a>
+            {% endwith %}
+        </nav>
+
+        <div class="p-3 border-t border-gray-200 dark:border-gray-800/80">
+            <div class="flex items-center gap-3 px-2">
+                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold">
+                    {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold truncate">{{ request.user.get_full_name|default:request.user.username }}</p>
+                    <p class="text-xs text-gray-400">{{ request.user.get_role_display }}</p>
+                </div>
+            </div>
+            <form method="post" action="{% url 'logout' %}" class="mt-2">
+                {% csrf_token %}
+                <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40">
+                    <i data-lucide="log-out" class="w-4 h-4"></i> Déconnexion
+                </button>
+            </form>
+        </div>
+    </aside>
+    {% endif %}
+
+    <!-- ================= ZONE PRINCIPALE ================= -->
+    <div class="flex-1 flex flex-col min-w-0">
+
+        <header class="h-16 sticky top-0 z-30 bg-white/80 dark:bg-gray-900/70 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800/80 flex items-center justify-between px-4 sm:px-6">
+            {% if user.is_authenticated %}
+            <div class="lg:hidden flex items-center gap-2">
+                <button onclick="openDrawer()" title="Menu"
+                        class="w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <a href="{% url 'dashboard' %}" class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-md shadow-brand-500/30">
+                        <i data-lucide="activity" class="w-5 h-5"></i>
+                    </div>
+                    <span class="font-extrabold text-brand-700 dark:text-brand-400">CRF-MK</span>
+                </a>
+            </div>
+            <h1 class="hidden lg:block text-lg font-bold">{% block page_title %}AFYA APP{% endblock %}</h1>
+            {% else %}
+            <div class="flex items-center gap-2">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white">
+                    <i data-lucide="activity" class="w-5 h-5"></i>
+                </div>
+                <span class="font-extrabold text-brand-700 dark:text-brand-400">CRF-MK</span>
+            </div>
+            {% endif %}
+
+            <div class="flex items-center gap-2">
+                {% if user.is_authenticated %}
+                <button class="relative w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                    <i data-lucide="bell" class="w-5 h-5"></i>
+                    <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pop-in">3</span>
+                </button>
+                {% endif %}
+                <button onclick="toggleTheme()" title="Changer de thème"
+                        class="w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                    <span class="dark:hidden"><i data-lucide="moon" class="w-5 h-5"></i></span>
+                    <span class="hidden dark:block"><i data-lucide="sun" class="w-5 h-5"></i></span>
+                </button>
+            </div>
+        </header>
+
+        <main class="flex-1 p-4 sm:p-6 pb-28 lg:pb-8 {% if not user.is_authenticated %}p-0 sm:p-0 pb-0{% endif %}">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="mb-4 px-4 py-3 rounded-xl animate-pop-in {% if message.tags == 'success' %}bg-brand-100 dark:bg-brand-950/70 text-brand-800 dark:text-brand-300 border border-brand-300 dark:border-brand-800{% else %}bg-red-100 dark:bg-red-950/70 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+
+<!-- ================= TIROIR LATÉRAL (mobile/tablette) ================= -->
+{% if user.is_authenticated %}
+<div id="drawer-backdrop" onclick="closeDrawer()"
+     class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 lg:hidden"></div>
+
+<aside id="drawer"
+       class="fixed top-0 left-0 z-50 h-full w-72 bg-white dark:bg-gray-900/95 dark:backdrop-blur-xl border-r border-gray-200 dark:border-gray-800 shadow-2xl -translate-x-full transition-transform duration-300 ease-out lg:hidden flex flex-col">
+
+    <div class="h-16 flex items-center justify-between px-5 border-b border-gray-200 dark:border-gray-800">
+        <div class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white">
+                <i data-lucide="activity" class="w-5 h-5"></i>
+            </div>
+            <span class="font-extrabold text-brand-700 dark:text-brand-400">CRF-MK</span>
+        </div>
+        <button onclick="closeDrawer()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1 text-sm">
+        <p class="px-3 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">Opérations</p>
+        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <i data-lucide="stethoscope" class="w-5 h-5"></i> Centre (jour)
+        </a>
+        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <i data-lucide="pill" class="w-5 h-5"></i> Pharmacie
+        </a>
+        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <i data-lucide="flask-conical" class="w-5 h-5"></i> Laboratoire
+        </a>
+        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <i data-lucide="house-plus" class="w-5 h-5"></i> Soins à domicile
+        </a>
+
+        <p class="px-3 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">Gestion</p>
+        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
+        </a>
+        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
+        </a>
+        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <i data-lucide="user" class="w-5 h-5"></i> Mon profil
+        </a>
+        <a href="{% url 'admin:index' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <i data-lucide="settings" class="w-5 h-5"></i> Administration
+        </a>
+    </nav>
+
+    <div class="p-3 border-t border-gray-200 dark:border-gray-800">
+        <div class="flex items-center gap-3 px-2 pb-2">
+            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold">
+                {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold truncate">{{ request.user.get_full_name|default:request.user.username }}</p>
+                <p class="text-xs text-gray-400">{{ request.user.get_role_display }}</p>
+            </div>
+        </div>
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40">
+                <i data-lucide="log-out" class="w-4 h-4"></i> Déconnexion
+            </button>
+        </form>
+    </div>
+</aside>
+{% endif %}
+
+<!-- ================= NAVIGATION BASSE flottante (mobile/tablette) ================= -->
+{% if user.is_authenticated %}
+<nav class="lg:hidden fixed bottom-4 inset-x-4 z-40">
+    <div class="bottom-nav bg-white/85 dark:bg-gray-900/85 border border-gray-200 dark:border-gray-700/80 rounded-2xl shadow-2xl shadow-black/20 flex items-end justify-around px-2 pt-3 pb-2">
+
+        <a href="{% url 'dashboard' %}" class="bottom-item {% if request.path == '/' %}active{% endif %} flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
+            <i data-lucide="home" class="w-6 h-6"></i>
+            <span class="text-[10px] font-medium">Accueil</span>
+            <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+        </a>
+
+        <a href="#" class="bottom-item flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
+            <i data-lucide="users" class="w-6 h-6"></i>
+            <span class="text-[10px] font-medium">Patients</span>
+            <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+        </a>
+
+        <!-- Bouton central (+) avec actions rapides -->
+        <div class="relative -mt-8">
+            <button onclick="toggleQuickActions()" title="Nouvelle activité"
+                    class="fab w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center border-4 border-gray-100 dark:border-gray-950">
+                <i data-lucide="plus" class="w-7 h-7"></i>
+            </button>
+            <div id="quick-actions" class="hidden absolute bottom-16 left-1/2 -translate-x-1/2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-2 space-y-1 animate-pop-in">
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="user-plus" class="w-4 h-4 text-brand-600"></i> Nouveau patient</a>
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="stethoscope" class="w-4 h-4 text-brand-600"></i> Nouvelle séance</a>
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="pill" class="w-4 h-4 text-brand-600"></i> Vente pharmacie</a>
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="wallet" class="w-4 h-4 text-brand-600"></i> Dépense</a>
+            </div>
+        </div>
+
+        <a href="#" class="bottom-item flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
+            <i data-lucide="calendar-days" class="w-6 h-6"></i>
+            <span class="text-[10px] font-medium">Agenda</span>
+            <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+        </a>
+
+        <a href="#" class="bottom-item relative flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
+            <i data-lucide="message-circle" class="w-6 h-6"></i>
+            <span class="text-[10px] font-medium">Messages</span>
+            <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>
+            <span class="absolute -top-1 right-3 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center animate-pop-in">8</span>
+        </a>
+    </div>
+</nav>
+{% endif %}
+
+<script>
+    lucide.createIcons();
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

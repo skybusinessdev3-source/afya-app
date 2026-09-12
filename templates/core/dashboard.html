@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block page_title %}Tableau de bord{% endblock %}
+{% block content %}
+<div class="stagger grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+
+    <div class="hover-lift bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between">
+            <p class="text-xs sm:text-sm text-gray-400">Patients du jour</p>
+            <div class="w-10 h-10 rounded-xl bg-brand-100 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                <i data-lucide="users" class="w-5 h-5"></i>
+            </div>
+        </div>
+        <p class="text-2xl sm:text-3xl font-extrabold mt-2 text-brand-600 dark:text-brand-400">—</p>
+    </div>
+
+    <div class="hover-lift bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between">
+            <p class="text-xs sm:text-sm text-gray-400">Recettes ($)</p>
+            <div class="w-10 h-10 rounded-xl bg-brand-100 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                <i data-lucide="banknote" class="w-5 h-5"></i>
+            </div>
+        </div>
+        <p class="text-2xl sm:text-3xl font-extrabold mt-2 text-brand-600 dark:text-brand-400">—</p>
+    </div>
+
+    <div class="hover-lift bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between">
+            <p class="text-xs sm:text-sm text-gray-400">Recettes (FC)</p>
+            <div class="w-10 h-10 rounded-xl bg-brand-100 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                <i data-lucide="coins" class="w-5 h-5"></i>
+            </div>
+        </div>
+        <p class="text-2xl sm:text-3xl font-extrabold mt-2 text-brand-600 dark:text-brand-400">—</p>
+    </div>
+
+    <div class="hover-lift bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between">
+            <p class="text-xs sm:text-sm text-gray-400">Dépenses</p>
+            <div class="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950 flex items-center justify-center text-red-500">
+                <i data-lucide="trending-down" class="w-5 h-5"></i>
+            </div>
+        </div>
+        <p class="text-2xl sm:text-3xl font-extrabold mt-2 text-red-500">—</p>
+    </div>
+</div>
+
+<div class="animate-fade-up mt-6 bg-gradient-to-r from-brand-600 to-brand-800 rounded-2xl p-6 text-white shadow-xl shadow-brand-600/20" style="animation-delay:.4s">
+    <h3 class="font-bold text-lg flex items-center gap-2">
+        <i data-lucide="sparkles" class="w-5 h-5"></i> Bienvenue sur AFYA APP
+    </h3>
+    <p class="text-brand-100 text-sm mt-1">Les statistiques en direct arrivent avec le module « Centre (jour) » — prochaine étape.</p>
+</div>
+{% endblock %}

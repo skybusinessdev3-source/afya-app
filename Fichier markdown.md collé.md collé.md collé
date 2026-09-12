@@ -1,0 +1,502 @@
+[image](file:///C:/Users/skyro/AppData/Local/Temp/msohtmlclip1/01/clip_image002.png) 
+
+
+
+
+
+
+
+Une
+application web de gestion financière et de patients et mini messagerie comme WhatsApp.
+
+Le
+nom de l’App tu va me le proposer ; la couleur principale est le vert
+blanc puisque c’est un centre médicale, l’adresse ; email, logo etc… et à
+l’en-tête.
+
+En
+ce qui concerne le thème, nous allons utiliser un thème qui va s’adapter au
+système, genre si le système est sombre, l’App sera en mode sombre et si le
+système est clair, celle si le sera aussi. En ce qui concerne les langages à
+utiliser, je préfère utiliser html, css taiwing, js au Frontend et au Backend
+python avec Django.
+
+**1.    Les
+fonctionnalité clés**
+
+L’App
+permettra de gérer la gestion financière du centre en gérant toute les
+entreprise (les services générative) du centre :
+
+**1.1.      
+Centre :**
+
+Ici,
+sera identifié toute activité effectué à la journée ; le nombre des
+patients ; les dépenses effectuées ; les montant payé par chaque
+patient ; la créance du jour, la dette du jour :
+
+Donc,
+si un patient vient, l’utilisateur fais une recherche à la BDD si le patient
+existe, si true, toutes les informations du patient dois s’afficher et remplir
+directement les champs (***voir champ patient***), si false,
+l’utilisateur doit enregistrer un nouveau patient avec les champs requissent. 
+
+Détail :
+***pour
+le patient existant :***
+
+Toutes les informations du patient doivent déjà
+s’afficher : le nom, post-nom, prénom, sexe, jour (pairs/impairs ou tous
+les jours), l’entreprise (***voir la configuration générale***) le
+nombre de séance prescrit, le nombre déjà effectué (cela sera compté le jour où
+le patient en question sera là pour sa séance), le nombre de séance restantes,
+le montant qu’il doit payer (soit FC ou $ ***Voir les modalités de paiement***) le
+montant déjà payé ; le montant qu’il a payé aujourd’hui ; sans oublié
+s’il est venue pour quoi (séance kiné, consultation, évaluation, laboratoire[si
+laboratoire, un modale doit s’afficher avec le champ pour laboratoire, voir le
+champ laboratoire] ou autre [saisir cette autre chose en question]). 
+
+***Pour
+le patient non trouvé dans la BDD***
+
+Un formulaire doit s’afficher comme modale avec
+les champs requissent pour enregistrer un nouveau patient (***voir les champs patients***)
+puis l’enregistrer directement dans la BDD comme les autres patients existant. 
+
+**Autre activité de la journée** 
+
+a. Vente de pharmacie ; le nom du patient
+soit sélectionner le patient existant, le nom du produit, la quantité, le
+montant à payer (***voir la modalité de paiement***) le montant payé (***voir
+la modalité de paiement***). La BDD doit vérifier si le produit existe, si
+oui vérifier sa quantité si elle peut être acheter, sinon elle doit envoyer un
+message d’erreur (***Voir la modalité de massage de retour***). La quantité acheté doit
+réduire la quantité initiale du produit concerné.
+
+b. Dépense : les dépense connus sont :
+le transport du cleaner, de l’A.G (Assistant Gestionnaire), poubelle, et aussi
+autre dépense [saisir l’autre dépense en question], donc bref un formulaire
+doit s’afficher pour saisir la ou les dépenses de la journée (***Voir
+le champ de dépense***).
+
+c. Soins à domicile : un formulaire pour les
+soins à domicile (***Voir le champ soins à domicile***)
+
+**1.2.       Pharmacie :**
+
+Un
+formulaire pour ajouter, modifier le produit (***Voir le champ pharmacie***) 
+
+**1.3.       Laboratoire :**
+
+Un
+tableau de répartition de l’laboratoire effectué ce mois ; la date, le nom
+du patient, examens (**Voir la
+configuration générale**) le médecin prescripteur, montant facturé, part du
+prescripteur, part de l’équipe du labo, et part du centre (**Voir la configuration générale**), observation. 
+
+**1.4.       Soins à domicile :**
+
+Un
+tableau de répartition de soins domicile effectué de ce mois ; la date,
+nom du patient, médecin traitant, nombre des séances prescrits, nombre des
+séances effectuées, nombres des séances restantes, montant facturé (***Voir
+la modalité de paiement***) montant déjà payé, montant restant. 
+
+**2.    Rapport :**
+
+Chaque
+fin de la journée, du mois, de l’année, il doit avoir un rapport général, qui
+regroupe toutes les activités du centre en trois format : le format PDF
+(bien structuré), le format Excel (bien structuré aussi) et le format Word
+(bien structuré aussi). 
+
+**2.1.       Journalier :**
+
+Un
+rapport global qui ressemble toutes activité effectué durant la journée, en
+trois formats : message WhatsApp (***Voir la modalité de rapport en message***)
+format PDF bien structuré. 
+
+**2.2.       Mensuel :**
+
+Un
+rapport global qui ressemble toutes activité effectué durant le mois, en trois
+formats : le format PDF (bien structuré), le format Excel (bien structuré
+aussi) et le format Word (bien structuré aussi). 
+
+**2.3.       Annuel :**
+
+Un
+rapport global qui ressemble toutes activité effectué durant toute l’année avec
+de graphique professionnel, et aussi en trois formats : le format PDF
+(bien structuré), le format Excel (bien structuré aussi) et le format Word
+(bien structuré aussi). 
+
+**3.    Autres
+fonctionnalités**
+
+**3.1.       Messagerie :**
+
+Comme
+mentionné si haut, cette App pourra aussi être utiliser comme une App de
+messagerie, donc il faut avoir une page de messagerie comme celle de WhatsApp,
+on peut discuter par de message, ou par de vocale, Emoji et aussi s’envoyer de
+vidéo et/ou images, fichier, documents ; et aussi créer de groupe comme le
+fais WhatsApp ; recherche d’un message dans la une conversation ou groupe.
+ Tu pourras aussi ajouter d’autre
+fonctionnalité simple comme la messagerie éphémère ou jamais ne supprimer la
+messagerie ; mettre en gras, italique, souligner ; puce, numérotation
+etc… 
+
+**3.2.       Calendrier :**
+
+Créer
+un calendrier professionnel même pour 5 ans directement pour nous faciliter la
+tâche, et si on clique sur une date, un formulaire doit s’afficher pour ajouter
+un rendez-vous ou autre chose : 
+
+Sélectionner
+un patient existant ou enregistrer un nouveau (***Voir le champ de patient***) ;
+motif du rendez-vous ; jour avant rappel ; le médecin du rendez-vous
+(par défaut Dr. Directeur [***Voir la configuration générale***]) et
+aussi une alarme ou non. 
+
+**3.3.       Rechercher un patient**
+
+Rechercher
+un patient rapidement et trouver tout ce qui le concerne (***Voir le champ patient***)
+
+**4.    Autre détail**
+
+**4.1.       Champ patient**
+
+§  Nom\* ;
+
+§  Post-nom ;
+
+§  Prénom\* ;
+
+§  Sexe\* ;
+
+§  Lieu
+de naissance ;
+
+§  Date
+de naissance ;
+
+§  Entreprise\* ;
+
+§  Téléphone ;
+
+§  Nombre
+de séances prescrit ;
+
+§  Nombre
+de séance effectué ;
+
+§  Nombre
+de séance restant ;
+
+§  Jour\*
+(pairs, impairs, tous jours ;
+
+§  Montant
+à payer\* ;
+
+§  Montant
+payé ;
+
+§  Montant
+restant (automatique) ;
+
+**4.2.       Configuration général**
+
+Ici,
+nous aurons plusieurs formulaires de configuration, modifications, suppressions
+des informations.
+
+**a.  ** ***Docteurs/Personnel ****:* Un
+formulaire pour ajouter un docteur qui sera sélectionné quelque part. Docteur
+directeur qui est : Dr. Rémy KAWELE. 
+
+§  Nom\* ;
+
+§  Prénom ;
+
+§  Sexe ;
+
+§  Titre\* ;
+(Docteur, laborantin, Assistant Gestionnaire, cleaner, autre.) ;
+
+§  Téléphone.
+
+b.  
+***Configuration du taux :***
+Un mini formulaire pour modifier le taux de change. Le taux par défaut
+est : 1,00$ = 2 250,00fc
+
+c.  
+***Configuration des
+entreprises :*** Un formulaire pour ajouter,
+supprimer une entreprise :
+
+§  Nom
+de l’entreprise ;
+
+§  Email ;
+
+§  Téléphone.
+
+d.  
+***Répartition soins à domicile :***
+Un formulaire pour repartir le pourcentage de soins à domicile.
+
+§  Part
+Médecin traitant ;
+
+§  Part
+centre.
+
+e.  
+***Répartition labo :***
+Un formulaire pour repartir, modifier le pourcentage de laboratoire : 
+
+§  Part
+prescripteur ;
+
+§  Part
+équipe centre ;
+
+§  Part
+centre ;
+
+Par
+défaut (Répartition : 20 % prescripteur ; sur les 80 % restants : 60 %
+équipe laboratoire et 40 % centre.)
+
+
+
+f.    
+***Examens labo :***
+Un formulaire pour ajouter, modifier les examens :
+
+§  Nom
+de l’examen ;
+
+§  Prix
+de l’examen ;
+
+§  Observation ;
+
+**4.3.       Modalité de paiement**
+
+Ici
+nous avons deux devise : Franc congolais (fc) et le dollar américain
+($) ; alors pour tout ce qui concerne de l’argent, il y aura une page de
+configuration de taux (***Voir la configuration général***) pour
+configurer le taux. 
+
+Donc
+lors de l’enregistrement d’un prix, montant ou autre chose qui concerne de l’argent,
+il faut qu’il ait deux devise, soit $ ou fc ; et comment cela va se passer ;
+si le prix par exemple est 10$, le backend doit enregistrer 10$ pour l’appel en
+$ et pour l’appel en fc 10$ \* par taux configurer (***Voir la configuration général***),
+par exemple le taux est de 2 250fc = 1$ ; donc avec l’exemple, le
+backend retiendra 10$ pour l’appel en $ et 22 500fc pour l’appel en fc.
+Pourquoi ça, car si le montant facturé pour un patient est de 240$, et il paie
+en fc, donc le backend doit d’abord convertir le montant soit en fc ou en
+dollar avant de le soustraire. 
+
+**4.4.       Modalité de message de return** 
+
+Tout
+message de retour doit être un modal personnalisé explicatif du retour, soit
+opération effectué avec succès, soir opération non effectué suite à … 
+
+Don
+un retour lors de la confirmation d’une suppression ; confirmation
+d’effectué une dépense ; retour d’une action en succès ou l’inverse etc…
+
+**4.5.       Champ de dépense**
+
+§  Libellé
+de la dépense\* ;
+
+§  Montant
+de la dépense\* (soit fc ou $) ;
+
+§  Personne
+concerné\* ;
+
+§  Observation.
+
+**4.6.       Champ des soins à domicile** 
+
+§  Nom
+du patient\* ;
+
+§  Examens\*
+(***Voir
+la configuration général***) ;
+
+§  Médecin
+traitant\* (***Voir la configuration général***) ;
+
+§  Montant
+facturé\* ;
+
+§  Part
+médecin traitant (automatique) (***Voir la configuration général***) ;
+
+§  Part
+centre (automatique) (***Voir la configuration général***) ;
+
+§  Observation ;
+
+
+
+**4.7.       Champ laboratoire**
+
+§  Nom
+du patient\* ;
+
+§  Examens\*
+(***Voir
+la configuration général***) ;
+
+§  Prescripteur\* ;
+
+§  Montant
+facturé\* ;
+
+§  Part
+prescripteur (automatique) (***Voir la configuration général***) ;
+
+§  Part
+équipe labo centre (automatique) (***Voir la configuration général***) ;
+
+§  Part
+centre (automatique) (***Voir la configuration général***) ;
+
+Observation ;
+
+**4.8.       Champ pharmacie** 
+
+§  Nom
+du produit\* ;
+
+§  Prix
+unitaire\* (**Voir la modalité de paiement**) ;
+
+§  Quantité
+initial ;
+
+§  Quantité
+restant (automatique) ;
+
+§  Date
+d’expiration ;
+
+§  Observation.
+
+**4.9.       Model rapport message**
+
+\*RAPPORT
+DU 09/08/2026\*
+
+Bonsoir
+à tous,
+
+J'espère
+que vous vous portez bien. C'est avec plaisir que je vous présente le rapport
+d'activités du jour.
+
+Le
+CRF-MK a fonctionné normalement aujourd'hui en enregistrant 8 patients qui ont
+tous confirmé leur rendez-vous pour le 10/09/2026
+
+\*LISTE
+DES PATIENTS ET MOUVEMENTS :\*
+
+1\.
+DAVID KALANDE (\_20$ + 18 000fc : Séance kiné + solution massage\_)
+
+2\.
+BOLOKO FAUSTIN (\_270 000fc : Payé la totalité de ses séances kiné \*[50%]\*\_)
+
+3\.
+ISABELLE KOMBE (\_LTJ\_)
+
+4\.
+KOTENE PATRICK (\_LTJ\_)
+
+5\.
+OMIAZILA VALENTIN (\_180 000fc : Payé ses 4 séance en dette et reste avec une
+dette de la séance d’aujourd’hui\_) \*[5/4]\*
+
+6\.
+SILAS LOKALE (\_LTJ\_)
+
+7\.
+LOOLA DOPHINE (\_2/5\_)
+
+8\.
+TSASA PANZU (\_4/6\_)
+
+\*VENTILATION
+DES RECETTES :\*
+
+\*MATÉRIEL
+À DOMICILE :\* \_0 $\_
+
+\*PHARMACIE\*
+: \_18 000fc\_
+
+\*SOINS
+À DOMICILE\* : \_10$ + 22 000fc (\*Patient IBRAHIMA\*)\_
+
+\*TOTAL
+PERÇUS\*: \_30$ + 490 000fc\_
+
+\*DÉPENSES
+DU JOUR :\*
+
+\*
+A.G : \_5 000fc\_
+
+\*
+Cleaner : \_6 000fc\_
+
+\*Total
+Dépenses :\* \_13 000fc\_ 
+
+
+
+\*SOLDE
+/ RESTE EN MAIN :\*
+
+\*\_30$
+\+ 479 000fc\_\*
+
+\*Cordialement\*
+🙌
+
+
+
+**5.    Autres pages**
+
+**5.1.       Tableau de bord :** Englobe
+toutes les activités effectuées durant ce mois, les entré en fc, les entrées en
+$, les dernières modifications avec détail (genre qui l’a effectué, quel
+utilisateur) 
+
+**5.2.       Paramètre :**
+Changer de thème, la couleur du navbar, la couleur
+secondaire (par défaut c’est verte) ; tu peux aussi ajouter d’autre
+paramètre important. 
+
+**5.3.       Profile :** Changer
+le nom de son profil, modifier son profil (sélectionner une photo, modifier ses
+informations, modifier son mot de passe)
