@@ -3,12 +3,14 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
-from apps.finance.models import Invoice
+from apps.finance.models import Invoice, Payment
 from apps.settings_app.models import Company
 from .models import Patient
 
@@ -26,7 +28,6 @@ def patient_create(request):
     try:
         data = json.loads(request.body)
 
-        # Champs obligatoires (§23 : le backend refuse les données incomplètes)
         for field in ('last_name', 'first_name', 'sex'):
             if not data.get(field):
                 return JsonResponse({'success': False, 'message': f"Champ manquant : {field}."}, status=400)
@@ -78,3 +79,53 @@ def patient_create(request):
         return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)
     except Company.DoesNotExist:
         return JsonResponse({'success': False, 'message': "Entreprise introuvable."}, status=400)
+
+
+@login_required
+def patient_list(request):
+    """Liste des patients avec recherche."""
+    q = request.GET.get('q', '').strip()
+    if q:
+        patients = Patient.objects.filter(
+            Q(last_name__icontains=q) |
+            Q(middle_name__icontains=q) |
+            Q(first_name__icontains=q) |
+            Q(phone__icontains=q),
+            is_active=True,
+        )
+    else:
+        patients = Patient.objects.filter(is_active=True)
+
+    context = {
+        'page_title': 'Patients',
+        'patients': patients[:100],
+        'q': q,
+        'total': patients.count(),
+    }
+    return render(request, 'patients/list.html', context)
+
+
+@login_required
+def patient_detail(request, pk):
+    """Fiche complète : infos + séances + factures/paiements + totaux dus."""
+    patient = get_object_or_404(Patient, pk=pk, is_active=True)
+
+    invoices = patient.invoices.prefetch_related('payments').exclude(
+        status=Invoice.Status.CANCELLED)
+
+    total_due_usd = sum(i.amount_usd for i in invoices)
+    total_paid_usd = sum(
+        p.amount_usd for i in invoices
+        for p in i.payments.filter(status=Payment.Status.VALID)
+    )
+
+    context = {
+        'page_title': patient.full_name,
+        'p': patient,
+        'sessions': patient.sessions.select_related('service', 'professional')[:50],
+        'invoices': invoices[:30],
+        'total_due_usd': total_due_usd,
+        'total_paid_usd': total_paid_usd,
+        'total_remaining_usd': total_due_usd - total_paid_usd,
+    }
+    return render(request, 'patients/detail.html', context)

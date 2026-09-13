@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block page_title %}Patients{% endblock %}
+
+{% block content %}
+<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up">
+    <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+        <h3 class="font-bold flex items-center gap-2">
+            <i data-lucide="users" class="w-5 h-5 text-brand-600"></i> Liste des patients
+            <span class="text-xs font-normal text-gray-400">({{ total }})</span>
+        </h3>
+        <form method="get" class="w-full sm:w-72">
+            <input type="text" name="q" value="{{ q }}" placeholder="Rechercher (nom, téléphone)…"
+                   class="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+        </form>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                    <th class="px-4 py-3 font-medium">Nom</th>
+                    <th class="px-4 py-3 font-medium">Sexe</th>
+                    <th class="px-4 py-3 font-medium">Téléphone</th>
+                    <th class="px-4 py-3 font-medium">Entreprise</th>
+                    <th class="px-4 py-3 font-medium">Séances</th>
+                    <th class="px-4 py-3 font-medium">Jour</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                {% for p in patients %}
+                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                    <td class="px-4 py-3">
+                        <a href="{% url 'patients:detail' p.pk %}" class="font-semibold text-brand-600 dark:text-brand-400 hover:underline">{{ p.full_name }}</a>
+                    </td>
+                    <td class="px-4 py-3">{{ p.get_sex_display }}</td>
+                    <td class="px-4 py-3">{{ p.phone|default:"—" }}</td>
+                    <td class="px-4 py-3">{{ p.company|default:"—" }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold text-xs">
+                            {{ p.sessions_done }}/{{ p.sessions_prescribed }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-400">{{ p.get_day_pattern_display }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Aucun patient trouvé.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

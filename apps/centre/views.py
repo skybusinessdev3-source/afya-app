@@ -11,11 +11,10 @@ from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
-from apps.finance.models import Invoice, Payment
+from apps.finance.models import Expense, Invoice, Payment
 from apps.patients.models import Patient
-from apps.settings_app.models import Staff, Company
-from apps.finance.models import Expense
-from .models import Session, Service
+from apps.settings_app.models import Company, Staff
+from .models import Service, Session
 
 
 def get_client_ip(request):
@@ -74,9 +73,10 @@ def patient_search(request):
 @transaction.atomic
 def register_session(request):
     """
-    Enregistre une séance du jour + (optionnel) facture et paiement.
-    Tout est créé dans UNE transaction atomique : si une étape échoue,
-    rien n'est enregistré (§10.2 et §23 du cahier des charges).
+    Enregistre une séance du jour + (optionnel) paiement sur la facture du patient.
+    - La facture représente le MONTANT DÛ (pas le montant payé)
+    - Le paiement s'ajoute à la facture ouverte du patient
+    - Le reste dû est calculé par conversion (taux figé) si devise différente
     """
     try:
         data = json.loads(request.body)
@@ -99,21 +99,37 @@ def register_session(request):
         # --- Paiement (optionnel) ---
         amount = Decimal(str(data.get('amount_paid', '0') or '0'))
         if amount > 0:
-            invoice = Invoice.objects.create(
-                patient=patient,
-                label=f"{session.get_motif_display()} — {timezone.localdate():%d/%m/%Y}",
-                amount_original=amount,
-                currency_original=data.get('currency', 'USD'),
-                created_by=request.user,
-            )
+            # 1) Cherche la facture ouverte du patient
+            invoice = patient.invoices.filter(
+                status__in=[Invoice.Status.OPEN, Invoice.Status.PARTIALLY_PAID]
+            ).order_by('date', 'pk').first()
+
+            # 2) Sinon, crée une facture du MONTANT DÛ (prix du service)
+            if invoice is None:
+                service = Service.objects.filter(pk=data['service_id']).first() if data.get('service_id') else None
+                if service:
+                    due_amount, due_currency = service.price_usd, 'USD'
+                    label = f"{service.name} — {timezone.localdate():%d/%m/%Y}"
+                else:
+                    due_amount, due_currency = amount, data.get('currency', 'USD')
+                    label = f"{session.get_motif_display()} — {timezone.localdate():%d/%m/%Y}"
+                invoice = Invoice.objects.create(
+                    patient=patient,
+                    label=label,
+                    amount_original=due_amount,
+                    currency_original=due_currency,
+                    created_by=request.user,
+                )
+                log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                          module='finance', obj=invoice, ip_address=get_client_ip(request))
+
+            # 3) Le paiement s'ajoute à la facture (n'importe quelle devise)
             payment = Payment.objects.create(
                 invoice=invoice,
                 amount_original=amount,
                 currency_original=data.get('currency', 'USD'),
                 received_by=request.user,
             )
-            log_event(user=request.user, action=AuditLog.Actions.CREATE,
-                      module='finance', obj=invoice, ip_address=get_client_ip(request))
             log_event(user=request.user, action=AuditLog.Actions.CREATE,
                       module='finance', obj=payment, ip_address=get_client_ip(request))
 

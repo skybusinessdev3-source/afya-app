@@ -7,7 +7,7 @@ from apps.core.models import TimeStampedModel
 from apps.accounts.models import User
 from apps.patients.models import Patient
 from apps.settings_app.models import Staff, LabExam, LabSplitConfig
-from apps.finance.models import CurrencyAmountMixin, Invoice
+from apps.finance.models import CurrencyAmountMixin, Invoice, get_current_rate
 
 
 def get_active_lab_split():
@@ -31,6 +31,7 @@ class LaboratoryRecord(TimeStampedModel, CurrencyAmountMixin):
     exam = models.ForeignKey(LabExam, on_delete=models.PROTECT, related_name='records')
     prescriber = models.ForeignKey(Staff, null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name='lab_prescriptions')
+    prescriber_name = models.CharField(max_length=150, blank=True, verbose_name="Prescripteur (nom libre)")
     date = models.DateField(default=timezone.localdate)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     invoice = models.ForeignKey(Invoice, null=True, blank=True, on_delete=models.SET_NULL,
@@ -44,6 +45,15 @@ class LaboratoryRecord(TimeStampedModel, CurrencyAmountMixin):
 
     def save(self, *args, **kwargs):
         if self.pk is None:
+            # 1) Conversion d'abord (le mixin la ferait trop tard pour les splits)
+            if self.currency_original == self.Currencies.USD:
+                self.rate_used = Decimal('1')
+                self.amount_usd = self.amount_original
+            else:
+                self.rate_used = get_current_rate()
+                self.amount_usd = (self.amount_original / self.rate_used).quantize(Decimal('0.01'))
+
+            # 2) Répartition figée (§12.1)
             prescriber_pct, lab_pct, center_pct = get_active_lab_split()
             self.prescriber_amount_usd = (self.amount_usd * prescriber_pct / 100).quantize(Decimal('0.01'))
             remaining = self.amount_usd - self.prescriber_amount_usd

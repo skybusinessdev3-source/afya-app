@@ -170,13 +170,13 @@
             <a href="{% url 'centre:day' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'centre' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="stethoscope" class="w-5 h-5"></i> Centre (jour)
             </a>
-            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <a href="{% url 'patients:list' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'patients' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="users" class="w-5 h-5"></i> Patients
             </a>
-            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <a href="{% url 'pharmacy:sale' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'pharmacy' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="pill" class="w-5 h-5"></i> Pharmacie
             </a>
-            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <a href="{% url 'laboratory:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'laboratory' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="flask-conical" class="w-5 h-5"></i> Laboratoire
             </a>
             <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
@@ -356,7 +356,7 @@
             <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>
         </a>
 
-        <a href="#" class="bottom-item flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
+        <a href="{% url 'patients:list' %}" class="bottom-item {% if ns == 'patients' %}active{% endif %} flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
             <i data-lucide="users" class="w-6 h-6"></i>
             <span class="text-[10px] font-medium">Patients</span>
             <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>
@@ -371,7 +371,7 @@
             <div id="quick-actions" class="hidden absolute bottom-16 left-1/2 -translate-x-1/2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-2 space-y-1 animate-pop-in">
                 <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="user-plus" class="w-4 h-4 text-brand-600"></i> Nouveau patient</a>
                 <a href="{% url 'centre:day' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="stethoscope" class="w-4 h-4 text-brand-600"></i> Nouvelle séance</a>
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="pill" class="w-4 h-4 text-brand-600"></i> Vente pharmacie</a>
+                <a href="{% url 'pharmacy:sale' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="pill" class="w-4 h-4 text-brand-600"></i> Vente pharmacie</a>
                 <a href="{% url 'centre:day' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="wallet" class="w-4 h-4 text-brand-600"></i> Dépense</a>
             </div>
         </div>

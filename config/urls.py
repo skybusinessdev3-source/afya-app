@@ -12,4 +12,6 @@ urlpatterns = [
     path('', dashboard, name='dashboard'),
     path('patients/', include('apps.patients.urls')),
     path('finance/', include('apps.finance.urls')),
+    path('pharmacie/', include('apps.pharmacy.urls')),
+    path('laboratoire/', include('apps.laboratory.urls')),
 ]

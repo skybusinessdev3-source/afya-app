@@ -1,0 +1,468 @@
+{% extends 'base.html' %}
+{% block page_title %}Laboratoire{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- ===== Nouvel examen ===== -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+            <h3 class="font-bold mb-3 flex items-center gap-2">
+                <i data-lucide="flask-conical" class="w-5 h-5 text-brand-600"></i> Nouvel examen
+            </h3>
+
+            <button onclick="openExamModal()" class="mb-3 w-full py-2.5 rounded-xl border-2 border-dashed border-brand-400 dark:border-brand-700 text-brand-700 dark:text-brand-300 text-sm font-semibold hover:bg-brand-50 dark:hover:bg-brand-950/40 transition flex items-center justify-center gap-2">
+                <i data-lucide="file-plus-2" class="w-4 h-4"></i> Ajouter au catalogue
+            </button>
+
+            <div class="space-y-2">
+                <!-- Recherche patient -->
+                <div>
+                    <input id="l-patient-search" type="text" placeholder="Rechercher le patient (nom, téléphone)…"
+                           class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                           autocomplete="off">
+                    <div id="l-patient-results" class="mt-2 space-y-1"></div>
+                    <div id="l-patient-selected" class="hidden mt-2 flex items-center justify-between px-3 py-2.5 rounded-xl bg-brand-50 dark:bg-brand-950 border border-brand-300 dark:border-brand-800 text-sm">
+                        <span class="font-semibold text-brand-700 dark:text-brand-300" id="l-patient-name"></span>
+                        <button onclick="clearLabPatient()" class="text-gray-400 hover:text-red-500 text-xs font-medium">Changer</button>
+                    </div>
+                </div>
+
+                <!-- Examens sélectionnés (multi) -->
+                <div>
+                    <div id="l-exams-list" class="space-y-1"></div>
+                    <div class="flex gap-2 mt-1">
+                        <select id="l-exam-add" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                            <option value="">+ Ajouter un examen…</option>
+                            {% for e in exams %}<option value="{{ e.id }}" data-usd="{{ e.price_usd }}" data-fc="{{ e.price_fc }}">{{ e.name }} ({{ e.price_usd }}$)</option>{% endfor %}
+                        </select>
+                        <button onclick="addExam()" title="Ajouter"
+                                class="w-11 shrink-0 rounded-xl bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 flex items-center justify-center hover:bg-brand-200 dark:hover:bg-brand-900 active:scale-95">
+                            <i data-lucide="plus" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <input id="l-prescriber" type="text" placeholder="Prescripteur (Dr. externe accepté)…"
+                       class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+
+                <!-- Montant facturé (AUTO, recalculé serveur) -->
+                <div class="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 text-sm">
+                    <span class="text-gray-400 shrink-0">Facturé <span id="l-count" class="text-xs"></span></span>
+                    <div class="flex items-center gap-2 min-w-0">
+                        <b id="l-total" class="text-brand-700 dark:text-brand-300 truncate">0</b>
+                        <select id="l-currency" class="w-24 shrink-0 px-2 py-1.5 rounded-lg border border-brand-400 dark:border-brand-700 bg-white dark:bg-gray-800 text-xs font-semibold text-brand-700 dark:text-brand-300 outline-none">
+                            <option value="USD">$ USD</option>
+                            <option value="FC">FC</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Montant payé (devise libre) -->
+                <div class="flex gap-2">
+                    <input id="l-paid" type="number" min="0" step="0.01" placeholder="Montant payé (0 si rien)"
+                           class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <select id="l-paid-currency" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold outline-none">
+                        <option value="USD">$ USD</option>
+                        <option value="FC">FC</option>
+                    </select>
+                </div>
+
+                <input id="l-obs" type="text" placeholder="Observation (optionnel)…"
+                       class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+
+                <div id="l-preview" class="hidden p-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-xs space-y-1">
+                    <p>Répartition qui sera appliquée (figée) :</p>
+                    <p>Prescripteur (20 %) : <b id="lp-prescriber"></b></p>
+                    <p>Équipe labo (60 % du restant) : <b id="lp-lab"></b></p>
+                    <p>Centre (40 % du restant) : <b id="lp-center"></b></p>
+                </div>
+
+                <div id="l-feedback" class="hidden px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+                <button onclick="submitLab(this)"
+                        class="w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+                    Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Tableau mensuel ===== -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i data-lucide="table" class="w-5 h-5 text-brand-600"></i> Répartition de {{ month_label }}
+                </h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                            <th class="px-4 py-3 font-medium">Date</th>
+                            <th class="px-4 py-3 font-medium">Patient</th>
+                            <th class="px-4 py-3 font-medium">Examen</th>
+                            <th class="px-4 py-3 font-medium">Prescripteur</th>
+                            <th class="px-4 py-3 font-medium text-right">Facturé</th>
+                            <th class="px-4 py-3 font-medium text-right">Prescr. (20%)</th>
+                            <th class="px-4 py-3 font-medium text-right">Équipe (60%)</th>
+                            <th class="px-4 py-3 font-medium text-right">Centre (40%)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        {% for r in records %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                            <td class="px-4 py-3 whitespace-nowrap">{{ r.date|date:"d/m/Y" }}</td>
+                            <td class="px-4 py-3 font-medium">{{ r.patient }}</td>
+                            <td class="px-4 py-3">{{ r.exam.name }}</td>
+                            <td class="px-4 py-3 text-gray-400">{{ r.prescriber_name|default:"—" }}</td>
+                            <td class="px-4 py-3 text-right font-semibold">{{ r.amount_original }} {{ r.currency_original }}</td>
+                            <td class="px-4 py-3 text-right text-gray-400">{{ r.prescriber_amount_usd }} $</td>
+                            <td class="px-4 py-3 text-right text-gray-400">{{ r.lab_team_amount_usd }} $</td>
+                            <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ r.center_amount_usd }} $</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun examen ce mois-ci.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if records %}
+                    <tfoot>
+                        <tr class="border-t-2 border-brand-200 dark:border-brand-900 font-bold bg-brand-50 dark:bg-brand-950/40">
+                            <td colspan="4" class="px-4 py-3">Totaux du mois</td>
+                            <td class="px-4 py-3 text-right">{{ totals.billed }} $</td>
+                            <td class="px-4 py-3 text-right">{{ totals.prescriber }} $</td>
+                            <td class="px-4 py-3 text-right">{{ totals.lab_team }} $</td>
+                            <td class="px-4 py-3 text-right">{{ totals.center }} $</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL NOUVEAU PATIENT ================= -->
+<div id="patient-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closePatientModal()"></div>
+    <div class="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-5 h-5 text-brand-600"></i> Nouveau patient
+            </h3>
+            <button onclick="closePatientModal()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <input id="np-last-name" type="text" placeholder="Nom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="np-middle-name" type="text" placeholder="Post-nom" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="np-first-name" type="text" placeholder="Prénom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="np-sex" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">Sexe *</option>
+                <option value="M">Masculin</option>
+                <option value="F">Féminin</option>
+            </select>
+            <input id="np-phone" type="tel" placeholder="Téléphone" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="np-day-pattern" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="ALL">Tous les jours</option>
+                <option value="EVEN">Jours pairs</option>
+                <option value="ODD">Jours impairs</option>
+            </select>
+        </div>
+
+        <div id="np-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+
+        <button onclick="submitNewPatient(this)"
+                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+            Enregistrer le patient
+        </button>
+    </div>
+</div>
+
+<!-- ================= MODAL NOUVEL EXAMEN ================= -->
+<div id="exam-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeExamModal()"></div>
+    <div class="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+                <i data-lucide="file-plus-2" class="w-5 h-5 text-brand-600"></i> Nouvel examen
+            </h3>
+            <button onclick="closeExamModal()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="space-y-2">
+            <input id="ex-name" type="text" placeholder="Nom de l'examen *"
+                   class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <div class="grid grid-cols-2 gap-2">
+                <input id="ex-price-usd" type="number" min="0" step="0.01" placeholder="Prix ($) *"
+                       class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="ex-price-fc" type="number" min="0" placeholder="Prix (FC) *"
+                       class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            </div>
+            <input id="ex-obs" type="text" placeholder="Observation (optionnel)…"
+                   class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+        </div>
+
+        <div id="ex-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+
+        <button onclick="submitExam(this)"
+                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+            Enregistrer l'examen
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ================= SÉLECTION PATIENT ================= */
+let labPatient = null, pTimer2;
+const pSearchInput = document.getElementById('l-patient-search');
+const pSearchBox = document.getElementById('l-patient-results');
+
+pSearchInput.addEventListener('input', () => {
+    clearTimeout(pTimer2);
+    const q = pSearchInput.value.trim();
+    if (q.length < 2) { pSearchBox.innerHTML = ''; return; }
+    pTimer2 = setTimeout(async () => {
+        const res = await fetch(`/centre/api/recherche-patients/?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        pSearchBox.innerHTML = data.results.length
+            ? data.results.map(p => `
+                <button onclick='selectLabPatient(${JSON.stringify(p)})'
+                        class="w-full text-left px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition text-sm">
+                    <span class="font-semibold">${p.name}</span>
+                    <span class="text-xs text-gray-400"> — ${p.phone}</span>
+                </button>`).join('')
+            : `<div class="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs">
+                   Patient introuvable — <button onclick="openPatientModal()" class="font-semibold underline">créer le patient</button>
+               </div>`;
+    }, 250);
+});
+
+function selectLabPatient(p) {
+    labPatient = p;
+    pSearchBox.innerHTML = '';
+    pSearchInput.classList.add('hidden');
+    document.getElementById('l-patient-name').textContent = p.name;
+    document.getElementById('l-patient-selected').classList.remove('hidden');
+}
+
+function clearLabPatient() {
+    labPatient = null;
+    pSearchInput.classList.remove('hidden');
+    pSearchInput.value = '';
+    document.getElementById('l-patient-selected').classList.add('hidden');
+}
+
+function openPatientModal() {
+    document.getElementById('patient-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closePatientModal() {
+    document.getElementById('patient-modal').classList.add('hidden');
+}
+
+async function submitNewPatient(btn) {
+    const feedback = document.getElementById('np-feedback');
+    btn.disabled = true;
+
+    const payload = {
+        last_name: document.getElementById('np-last-name').value,
+        middle_name: document.getElementById('np-middle-name').value,
+        first_name: document.getElementById('np-first-name').value,
+        sex: document.getElementById('np-sex').value,
+        phone: document.getElementById('np-phone').value,
+        day_pattern: document.getElementById('np-day-pattern').value,
+        amount_due: '0',
+        currency: 'USD',
+    };
+
+    const res = await fetch("{% url 'patients:create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+        closePatientModal();
+        selectLabPatient(data.patient);
+    } else {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+/* ================= EXAMENS MULTIPLES + TOTAUX AUTO ================= */
+let selectedExams = [];
+
+function addExam() {
+    const sel = document.getElementById('l-exam-add');
+    const id = parseInt(sel.value);
+    if (!id) return;
+    if (selectedExams.find(e => e.id === id)) return;  // pas de doublon
+    const opt = sel.querySelector(`option[value="${id}"]`);
+    selectedExams.push({
+        id,
+        name: opt.textContent.split(' (')[0],
+        usd: parseFloat(opt.dataset.usd),
+        fc: parseFloat(opt.dataset.fc),
+    });
+    sel.value = '';
+    renderExams();
+}
+
+function removeExam(id) {
+    selectedExams = selectedExams.filter(e => e.id !== id);
+    renderExams();
+}
+
+function renderExams() {
+    const list = document.getElementById('l-exams-list');
+    list.innerHTML = selectedExams.map(e => `
+        <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 text-sm animate-pop-in">
+            <span class="truncate">${e.name}</span>
+            <span class="flex items-center gap-2 shrink-0">
+                <b class="text-brand-700 dark:text-brand-300 text-xs">${e.usd}$ / ${e.fc} FC</b>
+                <button onclick="removeExam(${e.id})" class="text-gray-400 hover:text-red-500"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </span>
+        </div>`).join('');
+    lucide.createIcons();
+    updateTotal();
+}
+
+function updateTotal() {
+    const cur = document.getElementById('l-currency').value;
+    const total = selectedExams.reduce((s, e) => s + (cur === 'FC' ? e.fc : e.usd), 0);
+    document.getElementById('l-count').textContent = selectedExams.length ? `(${selectedExams.length})` : '';
+    document.getElementById('l-total').textContent = total.toLocaleString('fr-FR') + (cur === 'FC' ? ' FC' : ' $');
+    previewSplits(total);
+}
+
+document.getElementById('l-currency').addEventListener('change', updateTotal);
+
+/* Aperçu répartition 20/60/40 */
+const RATE_FC = 2250; // indication seulement — le calcul réel est figé côté serveur
+function previewSplits(totalInCurrency) {
+    const box = document.getElementById('l-preview');
+    if (!totalInCurrency || totalInCurrency <= 0) { box.classList.add('hidden'); return; }
+    const cur = document.getElementById('l-currency').value;
+    const usd = cur === 'FC' ? totalInCurrency / RATE_FC : totalInCurrency;
+    const prescriber = usd * 0.20;
+    const remaining = usd - prescriber;
+    document.getElementById('lp-prescriber').textContent = prescriber.toFixed(2) + ' $';
+    document.getElementById('lp-lab').textContent = (remaining * 0.60).toFixed(2) + ' $';
+    document.getElementById('lp-center').textContent = (remaining * 0.40).toFixed(2) + ' $';
+    box.classList.remove('hidden');
+}
+
+async function submitLab(btn) {
+    const feedback = document.getElementById('l-feedback');
+    btn.disabled = true;
+
+    if (!labPatient) {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ Sélectionnez d\'abord un patient.';
+        btn.disabled = false;
+        return;
+    }
+    if (selectedExams.length === 0) {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ Ajoutez au moins un examen.';
+        btn.disabled = false;
+        return;
+    }
+
+    const payload = {
+        patient_id: labPatient.id,
+        exam_ids: selectedExams.map(e => e.id),
+        prescriber_name: document.getElementById('l-prescriber').value,
+        currency: document.getElementById('l-currency').value,
+        amount_paid: document.getElementById('l-paid').value || '0',
+        paid_currency: document.getElementById('l-paid-currency').value,
+        observation: document.getElementById('l-obs').value,
+    };
+
+    const res = await fetch("{% url 'laboratory:record_create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    feedback.classList.remove('hidden',
+        'bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+    if (data.success) {
+        feedback.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+        feedback.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 1200);
+    } else {
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+/* ================= MODAL NOUVEL EXAMEN ================= */
+function openExamModal() {
+    document.getElementById('exam-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closeExamModal() {
+    document.getElementById('exam-modal').classList.add('hidden');
+}
+
+async function submitExam(btn) {
+    const feedback = document.getElementById('ex-feedback');
+    btn.disabled = true;
+
+    const payload = {
+        name: document.getElementById('ex-name').value,
+        price_usd: document.getElementById('ex-price-usd').value,
+        price_fc: document.getElementById('ex-price-fc').value,
+        observation: document.getElementById('ex-obs').value,
+    };
+
+    const res = await fetch("{% url 'laboratory:exam_create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    feedback.classList.remove('hidden',
+        'bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+    if (data.success) {
+        feedback.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+        feedback.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 1000);
+    } else {
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie) {
+        document.cookie.split(';').forEach(c => {
+            const [k, v] = c.trim().split('=');
+            if (k === name) cookieValue = decodeURIComponent(v);
+        });
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

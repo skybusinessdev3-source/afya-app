@@ -7,7 +7,7 @@ from apps.core.models import TimeStampedModel
 from apps.accounts.models import User
 from apps.patients.models import Patient
 from apps.settings_app.models import Staff, HomeCareSplitConfig
-from apps.finance.models import CurrencyAmountMixin, Invoice
+from apps.finance.models import CurrencyAmountMixin, Invoice, get_current_rate
 
 
 def get_active_home_care_split():
@@ -42,6 +42,15 @@ class HomeCareService(TimeStampedModel, CurrencyAmountMixin):
 
     def save(self, *args, **kwargs):
         if self.pk is None:
+            # 1) Conversion d'abord
+            if self.currency_original == self.Currencies.USD:
+                self.rate_used = Decimal('1')
+                self.amount_usd = self.amount_original
+            else:
+                self.rate_used = get_current_rate()
+                self.amount_usd = (self.amount_original / self.rate_used).quantize(Decimal('0.01'))
+
+            # 2) Répartition figée (§13)
             doctor_pct, center_pct = get_active_home_care_split()
             self.doctor_amount_usd = (self.amount_usd * doctor_pct / 100).quantize(Decimal('0.01'))
             self.center_amount_usd = self.amount_usd - self.doctor_amount_usd

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ p.full_name }}{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Infos -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800 animate-fade-up">
+        <h3 class="font-bold mb-4 flex items-center gap-2">
+            <i data-lucide="user-round" class="w-5 h-5 text-brand-600"></i> Informations
+        </h3>
+        <dl class="space-y-2 text-sm">
+            <div class="flex justify-between"><dt class="text-gray-400">Nom</dt><dd class="font-semibold">{{ p.full_name }}</dd></div>
+            <div class="flex justify-between"><dt class="text-gray-400">Sexe</dt><dd>{{ p.get_sex_display }}</dd></div>
+            <div class="flex justify-between"><dt class="text-gray-400">Né(e) le</dt><dd>{{ p.birth_date|date:"d/m/Y"|default:"—" }} {% if p.birth_place %}à {{ p.birth_place }}{% endif %}</dd></div>
+            <div class="flex justify-between"><dt class="text-gray-400">Téléphone</dt><dd>{{ p.phone|default:"—" }}</dd></div>
+            <div class="flex justify-between"><dt class="text-gray-400">Entreprise</dt><dd>{{ p.company|default:"—" }}</dd></div>
+            <div class="flex justify-between"><dt class="text-gray-400">Jour de venue</dt><dd>{{ p.get_day_pattern_display }}</dd></div>
+            <div class="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-800">
+                <dt class="text-gray-400">Séances</dt>
+                <dd class="font-bold text-brand-600 dark:text-brand-400">{{ p.sessions_done }} / {{ p.sessions_prescribed }}
+                    <span class="text-xs font-normal text-gray-400">({{ p.sessions_remaining }} restantes)</span>
+                </dd>
+            </div>
+            <div class="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-800">
+                <dt class="text-gray-400">Montant dû</dt>
+                <dd class="font-semibold">{{ total_due_usd }} $</dd>
+            </div>
+            <div class="flex justify-between">
+                <dt class="text-gray-400">Déjà payé</dt>
+                <dd class="font-semibold text-brand-600 dark:text-brand-400">{{ total_paid_usd }} $</dd>
+            </div>
+            <div class="flex justify-between">
+                <dt class="text-gray-400">Reste à payer</dt>
+                <dd class="font-bold {% if total_remaining_usd > 0 %}text-red-500{% else %}text-brand-600 dark:text-brand-400{% endif %}">
+                    {{ total_remaining_usd }} $
+                </dd>
+            </div>
+        </dl>
+    </div>
+
+    <!-- Séances -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+            <h3 class="font-bold flex items-center gap-2">
+                <i data-lucide="stethoscope" class="w-5 h-5 text-brand-600"></i> Séances
+            </h3>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto">
+            {% for s in sessions %}
+            <div class="px-4 py-3 text-sm flex justify-between items-center">
+                <div>
+                    <span class="font-medium">{{ s.get_motif_display }}</span>
+                    {% if s.service %}<span class="text-gray-400">— {{ s.service.name }}</span>{% endif %}
+                    <p class="text-xs text-gray-400">{{ s.professional|default:"" }}</p>
+                </div>
+                <span class="text-xs text-gray-400">{{ s.date|date:"d/m/Y" }}</span>
+            </div>
+            {% empty %}
+            <p class="p-6 text-center text-gray-400 text-sm">Aucune séance.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Factures / paiements -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.2s">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+            <h3 class="font-bold flex items-center gap-2">
+                <i data-lucide="banknote" class="w-5 h-5 text-brand-600"></i> Factures &amp; paiements
+            </h3>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto">
+            {% for inv in invoices %}
+            <div class="px-4 py-3 text-sm">
+                <div class="flex justify-between items-center">
+                    <span class="font-medium">{{ inv.label }}</span>
+                    <span class="text-xs px-2 py-1 rounded-lg {% if inv.status == 'PAID' %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% elif inv.status == 'CANCELLED' %}bg-gray-100 dark:bg-gray-800 text-gray-500{% else %}bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-300{% endif %}">
+                        {{ inv.get_status_display }}
+                    </span>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">
+                    {{ inv.reference }} — {{ inv.date|date:"d/m/Y" }} —
+                    dû : <b>{{ inv.amount_original }} {{ inv.currency_original }}</b>
+                    {% if inv.balance_usd > 0 %}(reste ≈ {{ inv.balance_usd }} $){% endif %}
+                </p>
+                {% for pay in inv.payments.all %}
+                <p class="text-xs mt-1 text-brand-700 dark:text-brand-300">
+                    ✓ Payé : {{ pay.amount_original }} {{ pay.currency_original }} (taux {{ pay.rate_used }})
+                </p>
+                {% endfor %}
+            </div>
+            {% empty %}
+            <p class="p-6 text-center text-gray-400 text-sm">Aucune facture.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
