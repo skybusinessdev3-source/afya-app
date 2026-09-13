@@ -17,4 +17,7 @@ urlpatterns = [
     path('soins-domicile/', include('apps.home_care.urls')),
     path('rendez-vous/', include('apps.appointments.urls')),
     path('notifications/', include('apps.notifications.urls')),
+    path('rapports/', include('apps.reports.urls')),
+    path('configuration/', include('apps.settings_app.urls')),
+    path('compte/', include('apps.accounts.urls')),
 ]

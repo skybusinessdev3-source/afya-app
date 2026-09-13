@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block page_title %}Rapports{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- ===== Paramètres ===== -->
+    <div class="lg:col-span-1 space-y-4">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+            <h3 class="font-bold mb-3 flex items-center gap-2">
+                <i data-lucide="file-text" class="w-5 h-5 text-brand-600"></i> Rapports
+            </h3>
+
+            <!-- Onglets -->
+            <div class="flex rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden text-sm mb-3">
+                <a href="?vue=jour&periode={{ periode }}"
+                   class="flex-1 py-2 text-center font-semibold {% if vue == 'jour' %}bg-brand-600 text-white{% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800{% endif %}">Jour</a>
+                <a href="?vue=mois&periode={{ periode|slice:':7' }}"
+                   class="flex-1 py-2 text-center font-semibold {% if vue == 'mois' %}bg-brand-600 text-white{% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800{% endif %}">Mois</a>
+                <a href="?vue=annee&periode={{ periode|slice:':4' }}"
+                   class="flex-1 py-2 text-center font-semibold {% if vue == 'annee' %}bg-brand-600 text-white{% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800{% endif %}">Année</a>
+            </div>
+
+            <form method="get" class="space-y-2">
+                <input type="hidden" name="vue" value="{{ vue }}">
+                {% if vue == 'jour' %}
+                <input type="date" name="periode" value="{{ periode }}" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                {% elif vue == 'mois' %}
+                <input type="month" name="periode" value="{{ periode }}" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                {% else %}
+                <input type="number" name="periode" value="{{ periode }}" min="2024" max="2100" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                {% endif %}
+                <button type="submit" class="w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+                    Générer
+                </button>
+            </form>
+
+            <button onclick="copyReport()"
+                    class="mt-2 w-full py-3 rounded-xl border-2 border-brand-500 text-brand-600 dark:text-brand-400 font-semibold flex items-center justify-center gap-2 hover:bg-brand-50 dark:hover:bg-brand-950/40">
+                <i data-lucide="clipboard-copy" class="w-4 h-4"></i> Copier pour WhatsApp
+            </button>
+            <p id="copy-feedback" class="hidden mt-2 text-center text-xs text-brand-600 dark:text-brand-400 font-semibold">✓ Copié ! Collez dans WhatsApp.</p>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+                <a href="{% url 'reports:export_pdf' %}?vue={{ vue }}&periode={{ periode }}"
+                   class="py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[.98]">
+                    <i data-lucide="file-down" class="w-4 h-4"></i> PDF
+                </a>
+                <a href="{% url 'reports:export_excel' %}?vue={{ vue }}&periode={{ periode }}"
+                   class="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[.98]">
+                    <i data-lucide="sheet" class="w-4 h-4"></i> Excel
+                </a>
+            </div>
+        </div>
+
+        <!-- Totaux rapides -->
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
+            <h3 class="font-bold mb-2 text-sm flex items-center gap-2">
+                <i data-lucide="calculator" class="w-4 h-4 text-brand-600"></i> Totaux
+            </h3>
+            <div class="space-y-1.5 text-sm">
+                <div class="flex justify-between"><span class="text-gray-400">Perçus</span><b class="text-brand-600 dark:text-brand-400">{{ report.total_percus }}</b></div>
+                <div class="flex justify-between"><span class="text-gray-400">Dépenses</span><b class="text-red-500">{{ report.total_depenses }}</b></div>
+                <div class="flex justify-between pt-1.5 border-t border-gray-200 dark:border-gray-800"><span class="text-gray-400">Solde</span><b>{{ report.solde }}</b></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Aperçu ===== -->
+    <div class="lg:col-span-2">
+        {% if vue == 'annee' %}
+        <!-- Tableau annuel -->
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.15s">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i data-lucide="table" class="w-5 h-5 text-brand-600"></i> Détail par mois — {{ report.label }}
+                </h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                            <th class="px-4 py-3 font-medium">Mois</th>
+                            <th class="px-4 py-3 font-medium text-center">Patients</th>
+                            <th class="px-4 py-3 font-medium text-center">Séances</th>
+                            <th class="px-4 py-3 font-medium text-right">Perçus</th>
+                            <th class="px-4 py-3 font-medium text-right">Dépenses</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        {% for m in report.months %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                            <td class="px-4 py-3 font-medium">{{ m.name }}</td>
+                            <td class="px-4 py-3 text-center">{{ m.patients }}</td>
+                            <td class="px-4 py-3 text-center">{{ m.sessions }}</td>
+                            <td class="px-4 py-3 text-right font-semibold">{{ m.percus }}</td>
+                            <td class="px-4 py-3 text-right text-red-500">{{ m.depenses }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up mt-4" style="animation-delay:.2s">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i data-lucide="message-square-text" class="w-5 h-5 text-brand-600"></i>
+                    Aperçu WhatsApp — {{ report.label }}
+                </h3>
+            </div>
+            <pre id="report-text" class="p-5 text-sm whitespace-pre-wrap font-sans leading-relaxed">{{ whatsapp_text }}</pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyReport() {
+    const text = document.getElementById('report-text').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const fb = document.getElementById('copy-feedback');
+        fb.classList.remove('hidden');
+        setTimeout(() => fb.classList.add('hidden'), 2500);
+    });
+}
+</script>
+{% endblock %}

@@ -189,27 +189,32 @@
             <a href="{% url 'appointments:calendar' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'appointments' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="calendar-days" class="w-5 h-5"></i> Rendez-vous
             </a>
-            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <a href="{% url 'reports:daily' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'reports' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
             </a>
             <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
                 <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
             </a>
-            <a href="{% url 'admin:index' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
-                <i data-lucide="settings" class="w-5 h-5"></i> Administration
+            <a href="{% url 'settings_app:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'settings_app' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+                <i data-lucide="settings" class="w-5 h-5"></i> Configuration
             </a>
         </nav>
 
         <div class="p-3 border-t border-gray-200 dark:border-gray-800/80">
-            <div class="flex items-center gap-3 px-2">
-                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold">
+            <a href="{% url 'accounts:profile' %}" class="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60 transition group">
+                {% if user.avatar %}
+                <img src="{{ user.avatar.url }}" alt="" class="w-9 h-9 rounded-full object-cover border border-brand-500">
+                {% else %}
+                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold group-hover:scale-110 transition">
                     {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
                 </div>
+                {% endif %}
                 <div class="flex-1 min-w-0">
                     <p class="text-sm font-semibold truncate">{{ request.user.get_full_name|default:request.user.username }}</p>
                     <p class="text-xs text-gray-400">{{ request.user.get_role_display }}</p>
                 </div>
-            </div>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition"></i>
+            </a>
             <form method="post" action="{% url 'logout' %}" class="mt-2">
                 {% csrf_token %}
                 <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40">
@@ -339,7 +344,7 @@
         </a>
 
         <p class="px-3 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">Gestion</p>
-        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+        <a href="{% url 'reports:daily' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'reports' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
         </a>
         <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
@@ -351,15 +356,20 @@
     </nav>
 
     <div class="p-3 border-t border-gray-200 dark:border-gray-800">
-        <div class="flex items-center gap-3 px-2 pb-2">
-            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold">
+        <a href="{% url 'accounts:profile' %}" onclick="closeDrawer()" class="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60 transition group">
+            {% if user.avatar %}
+            <img src="{{ user.avatar.url }}" alt="" class="w-9 h-9 rounded-full object-cover border border-brand-500">
+            {% else %}
+            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold group-hover:scale-110 transition">
                 {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
             </div>
+            {% endif %}
             <div class="flex-1 min-w-0">
                 <p class="text-sm font-semibold truncate">{{ request.user.get_full_name|default:request.user.username }}</p>
                 <p class="text-xs text-gray-400">{{ request.user.get_role_display }}</p>
             </div>
-        </div>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition"></i>
+        </a>
         <form method="post" action="{% url 'logout' %}">
             {% csrf_token %}
             <button type="submit" class="w-full flex items-center gap-2 px-3 py-2.5 text-sm rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40">

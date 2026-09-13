@@ -1,0 +1,344 @@
+{% extends 'base.html' %}
+{% block page_title %}Configuration{% endblock %}
+
+{% block content %}
+<!-- Onglets -->
+<div class="flex flex-wrap gap-2 mb-4 animate-fade-up">
+    {% for key, label in tab_list %}
+    <button onclick="showTab('{{ key }}')" id="tab-{{ key }}"
+            class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold border border-gray-200 dark:border-gray-700 {% if key == 'centre' %}bg-brand-600 text-white{% else %}text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800{% endif %}">{{ label }}</button>
+    {% endfor %}
+</div>
+
+<!-- ================= CENTRE ================= -->
+<section id="tabcontent-centre" class="tab-content">
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800">
+        <h3 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="building-2" class="w-5 h-5 text-brand-600"></i> Informations du centre</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input id="c-name" value="{{ center.name|default:'' }}" placeholder="Nom du centre *" class="sm:col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="c-address" value="{{ center.address|default:'' }}" placeholder="Adresse" class="sm:col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="c-phone" value="{{ center.phone|default:'' }}" placeholder="Téléphone" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="c-email" value="{{ center.email|default:'' }}" placeholder="Email" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="c-doctor" class="sm:col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">— Médecin directeur par défaut —</option>
+                {% for s in staff_list %}{% if s.title == 'DOCTOR' %}<option value="{{ s.id }}" {% if center.default_doctor_id == s.id %}selected{% endif %}>{{ s }}</option>{% endif %}{% endfor %}
+            </select>
+            <form method="post" action="{% url 'settings_app:center_logo' %}" enctype="multipart/form-data" class="sm:col-span-2">
+                {% csrf_token %}
+                <div class="flex gap-2 items-center">
+                    {% if center.logo %}<img src="{{ center.logo.url }}" alt="logo" class="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-gray-700">{% endif %}
+                    <input type="file" name="logo" accept="image/*" class="flex-1 px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 text-sm text-gray-400">
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-gray-200 dark:bg-gray-700 text-sm font-semibold hover:bg-gray-300 dark:hover:bg-gray-600">Logo</button>
+                </div>
+            </form>
+        </div>
+        <div id="c-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+        <button onclick="saveCenter(this)" class="mt-3 px-6 py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold text-sm active:scale-[.98]">Enregistrer</button>
+    </div>
+</section>
+
+<!-- ================= PERSONNEL ================= -->
+<section id="tabcontent-personnel" class="tab-content hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800">
+            <h3 class="font-bold mb-3 flex items-center gap-2"><i data-lucide="user-plus" class="w-5 h-5 text-brand-600"></i> Ajouter du personnel</h3>
+            <div class="grid grid-cols-2 gap-2">
+                <input id="st-last" placeholder="Nom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="st-first" placeholder="Prénom" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <select id="st-sex" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <option value="">Sexe</option><option value="M">M</option><option value="F">F</option>
+                </select>
+                <select id="st-title" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <option value="">Titre *</option>
+                    <option value="DOCTOR">Docteur</option>
+                    <option value="LAB_TECH">Laborantin</option>
+                    <option value="ASSISTANT_MANAGER">Assistant Gestionnaire</option>
+                    <option value="CLEANER">Cleaner</option>
+                    <option value="OTHER">Autre</option>
+                </select>
+                <input id="st-phone" placeholder="Téléphone" class="col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            </div>
+            <div id="st-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+            <button onclick="saveStaff(this)" class="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold text-sm active:scale-[.98]">Ajouter</button>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 font-bold text-sm">Personnel enregistré</div>
+            <div class="divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto">
+                {% for s in staff_list %}
+                <div class="px-4 py-2.5 flex items-center justify-between text-sm {% if not s.is_active %}opacity-40{% endif %}">
+                    <div><b>{{ s }}</b><p class="text-xs text-gray-400">{{ s.get_title_display }} · {{ s.phone|default:"—" }}</p></div>
+                    <button onclick="toggleStaff({{ s.id }})" class="text-xs px-2.5 py-1 rounded-lg {% if s.is_active %}bg-red-100 dark:bg-red-950 text-red-600{% else %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% endif %} font-semibold">
+                        {% if s.is_active %}Désactiver{% else %}Activer{% endif %}
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= TAUX ================= -->
+<section id="tabcontent-taux" class="tab-content hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-amber-300 dark:border-amber-800">
+            <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="arrow-right-left" class="w-5 h-5 text-amber-500"></i> Nouveau taux</h3>
+            <p class="text-xs text-gray-400 mb-3">⚠️ Les anciennes transactions conservent toujours leur taux (§10.1).</p>
+            <input id="r-rate" type="number" step="0.0001" placeholder="Taux (ex: 2400)" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm mb-2">
+            <input id="r-from" type="date" title="Effectif à partir de" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <div id="r-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+            <button onclick="saveRate(this)" class="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-700 text-white font-semibold text-sm active:scale-[.98]">Enregistrer le taux</button>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 font-bold text-sm">Historique des taux</div>
+            <div class="divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto">
+                {% for r in rates %}
+                <div class="px-4 py-2.5 text-sm {% if r.is_active %}bg-brand-50 dark:bg-brand-950/40{% endif %}">
+                    <b>{{ r }}</b>{% if r.is_active %} <span class="text-xs text-brand-600 dark:text-brand-400 font-bold">← actuel</span>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= ENTREPRISES ================= -->
+<section id="tabcontent-entreprises" class="tab-content hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800">
+            <h3 class="font-bold mb-3 flex items-center gap-2"><i data-lucide="building" class="w-5 h-5 text-brand-600"></i> Ajouter une entreprise</h3>
+            <input id="co-name" placeholder="Nom de l'entreprise *" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm mb-2">
+            <div class="grid grid-cols-2 gap-2">
+                <input id="co-email" placeholder="Email" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="co-phone" placeholder="Téléphone" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            </div>
+            <div id="co-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+            <button onclick="saveCompany(this)" class="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold text-sm active:scale-[.98]">Ajouter</button>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 font-bold text-sm">Entreprises</div>
+            <div class="divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto">
+                {% for c in companies %}
+                <div class="px-4 py-2.5 flex items-center justify-between text-sm {% if not c.is_active %}opacity-40{% endif %}">
+                    <div><b>{{ c.name }}</b><p class="text-xs text-gray-400">{{ c.phone|default:"—" }} · {{ c.email|default:"—" }}</p></div>
+                    <button onclick="toggleCompany({{ c.id }})" class="text-xs px-2.5 py-1 rounded-lg {% if c.is_active %}bg-red-100 dark:bg-red-950 text-red-600{% else %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% endif %} font-semibold">
+                        {% if c.is_active %}Désactiver{% else %}Activer{% endif %}
+                    </button>
+                </div>
+                {% empty %}<p class="p-4 text-sm text-gray-400 text-center">Aucune entreprise.</p>{% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================= RÉPARTITIONS ================= -->
+<section id="tabcontent-repartitions" class="tab-content hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-violet-300 dark:border-violet-800">
+            <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="flask-conical" class="w-5 h-5 text-violet-500"></i> Répartition laboratoire</h3>
+            <p class="text-xs text-gray-400 mb-3">Actuel : <b>{{ lab_split|default:"—" }}</b></p>
+            <div class="grid grid-cols-3 gap-2">
+                <input id="lb-prescr" type="number" step="0.01" placeholder="Prescripteur %" value="{{ lab_split.prescriber_pct|default:20 }}" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="lb-lab" type="number" step="0.01" placeholder="Équipe %" value="{{ lab_split.lab_team_pct|default:60 }}" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="lb-center" type="number" step="0.01" placeholder="Centre %" value="{{ lab_split.center_pct|default:40 }}" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            </div>
+            <div id="lb-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+            <button onclick="saveLabSplit(this)" class="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-violet-700 text-white font-semibold text-sm active:scale-[.98]">Nouvelle version</button>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-teal-300 dark:border-teal-800">
+            <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="house-plus" class="w-5 h-5 text-teal-500"></i> Répartition soins à domicile</h3>
+            <p class="text-xs text-gray-400 mb-3">Actuel : <b>{{ home_split|default:"—" }}</b></p>
+            <div class="grid grid-cols-2 gap-2">
+                <input id="hc-doc" type="number" step="0.01" placeholder="Médecin %" value="{{ home_split.doctor_pct|default:50 }}" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="hc-center" type="number" step="0.01" placeholder="Centre %" value="{{ home_split.center_pct|default:50 }}" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            </div>
+            <div id="hc-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+            <button onclick="saveHomeSplit(this)" class="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-700 text-white font-semibold text-sm active:scale-[.98]">Nouvelle version</button>
+        </div>
+    </div>
+</section>
+
+<!-- ================= EXAMENS ================= -->
+<section id="tabcontent-examens" class="tab-content hidden">
+    <input type="hidden" id="ex-rate" value="{{ taux }}">
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 font-bold text-sm">
+            Catalogue des examens ({{ exams|length }}) — taux actuel : 1$ = {{ taux }} FC
+            <span class="text-xs font-normal text-gray-400">— modification en ligne, conversion auto $ ↔ FC, s'applique aux nouvelles opérations</span>
+        </div>
+        <div class="overflow-x-auto max-h-[32rem] overflow-y-auto">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-white dark:bg-gray-900">
+                    <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                        <th class="px-4 py-2 font-medium">Examen</th>
+                        <th class="px-4 py-2 font-medium w-28">Prix ($)</th>
+                        <th class="px-4 py-2 font-medium w-32">Prix (FC)</th>
+                        <th class="px-4 py-2 font-medium w-24 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                    {% for e in exams %}
+                    <tr class="{% if not e.is_active %}opacity-40{% endif %}">
+                        <td class="px-4 py-2 font-medium">{{ e.name }}</td>
+                        <td class="px-2 py-1"><input id="exu-{{ e.id }}" type="number" step="0.01" value="{{ e.price_usd }}" class="w-full px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs"></td>
+                        <td class="px-2 py-1"><input id="exf-{{ e.id }}" type="number" value="{{ e.price_fc }}" class="w-full px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs"></td>
+                        <td class="px-4 py-2 text-right whitespace-nowrap">
+                            <button onclick="updateExam({{ e.id }})" title="Enregistrer" class="w-8 h-8 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 inline-flex items-center justify-center"><i data-lucide="save" class="w-4 h-4"></i></button>
+                            <button onclick="toggleExam({{ e.id }})" title="Activer/Désactiver" class="w-8 h-8 rounded-lg {% if e.is_active %}bg-red-100 dark:bg-red-950 text-red-600{% else %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% endif %} inline-flex items-center justify-center"><i data-lucide="power" class="w-4 h-4"></i></button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div id="ex-feedback" class="hidden px-4 py-2.5 text-sm font-medium border-t border-gray-200 dark:border-gray-800"></div>
+    </div>
+</section>
+
+<!-- ================= SERVICES ================= -->
+<section id="tabcontent-services" class="tab-content hidden">
+    <input type="hidden" id="sv-rate" value="{{ taux }}">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800">
+            <h3 class="font-bold mb-3 flex items-center gap-2"><i data-lucide="stethoscope" class="w-5 h-5 text-brand-600"></i> Ajouter un service</h3>
+            <input id="sv-name" placeholder="Nom du service *" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm mb-2">
+            <div class="grid grid-cols-2 gap-2">
+                <input id="sv-usd" type="number" step="0.01" placeholder="Prix ($) *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="sv-fc" type="number" placeholder="Prix (FC) *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            </div>
+            <div id="sv-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+            <button onclick="saveService(this)" class="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold text-sm active:scale-[.98]">Ajouter</button>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 font-bold text-sm">Services du centre</div>
+            <div class="divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto">
+                {% for s in services %}
+                <div class="px-4 py-2.5 flex items-center justify-between text-sm {% if not s.is_active %}opacity-40{% endif %}">
+                    <div><b>{{ s.name }}</b><p class="text-xs text-gray-400">{{ s.price_usd }} $ / {{ s.price_fc }} FC</p></div>
+                    <button onclick="toggleService({{ s.id }})" class="text-xs px-2.5 py-1 rounded-lg {% if s.is_active %}bg-red-100 dark:bg-red-950 text-red-600{% else %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% endif %} font-semibold">
+                        {% if s.is_active %}Désactiver{% else %}Activer{% endif %}
+                    </button>
+                </div>
+                {% empty %}<p class="p-4 text-sm text-gray-400 text-center">Aucun service.</p>{% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showTab(key) {
+    document.querySelectorAll('.tab-content').forEach(s => s.classList.add('hidden'));
+    document.getElementById('tabcontent-' + key).classList.remove('hidden');
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('bg-brand-600', 'text-white');
+        b.classList.add('text-gray-500', 'dark:text-gray-400');
+    });
+    const btn = document.getElementById('tab-' + key);
+    btn.classList.add('bg-brand-600', 'text-white');
+    btn.classList.remove('text-gray-500', 'dark:text-gray-400');
+}
+
+function fb(el, ok, msg) {
+    el.classList.remove('hidden', 'bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+    el.classList.add(ok ? 'bg-brand-100' : 'bg-red-100', ok ? 'dark:bg-brand-950' : 'dark:bg-red-950',
+        ok ? 'text-brand-700' : 'text-red-700', ok ? 'dark:text-brand-300' : 'dark:text-red-300');
+    el.textContent = (ok ? '✓ ' : '✗ ') + msg;
+    if (ok) setTimeout(() => location.reload(), 900);
+}
+
+async function post(url, payload, el) {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    fb(el, data.success, data.message);
+}
+
+function c(id) { return document.getElementById(id).value; }
+
+function getCookie(name) {
+    let v = null;
+    if (document.cookie) document.cookie.split(';').forEach(x => {
+        const [k, val] = x.trim().split('=');
+        if (k === name) v = decodeURIComponent(val);
+    });
+    return v;
+}
+
+/* ================= ACTIONS ================= */
+const saveCenter = (b) => post("{% url 'settings_app:center_update' %}", {
+    name: c('c-name'), address: c('c-address'), phone: c('c-phone'),
+    email: c('c-email'), default_doctor_id: c('c-doctor') || null,
+}, document.getElementById('c-feedback'));
+
+const saveStaff = (b) => post("{% url 'settings_app:staff_create' %}", {
+    last_name: c('st-last'), first_name: c('st-first'), sex: c('st-sex'),
+    title: c('st-title'), phone: c('st-phone'),
+}, document.getElementById('st-feedback'));
+
+const toggleStaff = (id) => post(`/configuration/api/personnel/${id}/basculer/`, {}, document.getElementById('st-feedback'));
+
+const saveRate = (b) => post("{% url 'settings_app:rate_create' %}", {
+    currency_from: 'USD', currency_to: 'FC',
+    rate: c('r-rate'), effective_from: c('r-from') || null,
+}, document.getElementById('r-feedback'));
+
+const saveCompany = (b) => post("{% url 'settings_app:company_create' %}", {
+    name: c('co-name'), email: c('co-email'), phone: c('co-phone'),
+}, document.getElementById('co-feedback'));
+
+const toggleCompany = (id) => post(`/configuration/api/entreprise/${id}/basculer/`, {}, document.getElementById('co-feedback'));
+
+const saveLabSplit = (b) => post("{% url 'settings_app:lab_split_create' %}", {
+    prescriber_pct: c('lb-prescr'), lab_team_pct: c('lb-lab'), center_pct: c('lb-center'),
+}, document.getElementById('lb-feedback'));
+
+const saveHomeSplit = (b) => post("{% url 'settings_app:home_split_create' %}", {
+    doctor_pct: c('hc-doc'), center_pct: c('hc-center'),
+}, document.getElementById('hc-feedback'));
+
+const updateExam = (id) => post(`/configuration/api/examen/${id}/modifier/`, {
+    price_usd: c(`exu-${id}`), price_fc: c(`exf-${id}`),
+}, document.getElementById('ex-feedback'));
+
+const toggleExam = (id) => post(`/configuration/api/examen/${id}/basculer/`, {}, document.getElementById('ex-feedback'));
+
+const saveService = (b) => post("{% url 'settings_app:service_create' %}", {
+    name: c('sv-name'), price_usd: c('sv-usd'), price_fc: c('sv-fc'),
+}, document.getElementById('sv-feedback'));
+
+const toggleService = (id) => post(`/configuration/api/service/${id}/basculer/`, {}, document.getElementById('sv-feedback'));
+
+/* ================= CONVERSION AUTO $ ↔ FC ================= */
+const EX_RATE = parseFloat(document.getElementById('ex-rate').value || '2250');
+
+document.querySelectorAll('input[id^="exu-"]').forEach(inp => {
+    const id = inp.id.split('-')[1];
+    inp.addEventListener('input', () => {
+        const usd = parseFloat(inp.value);
+        if (usd > 0) document.getElementById(`exf-${id}`).value = Math.round(usd * EX_RATE);
+    });
+});
+document.querySelectorAll('input[id^="exf-"]').forEach(inp => {
+    const id = inp.id.split('-')[1];
+    inp.addEventListener('input', () => {
+        const fc = parseFloat(inp.value);
+        if (fc > 0) document.getElementById(`exu-${id}`).value = (fc / EX_RATE).toFixed(2);
+    });
+});
+
+// Conversion aussi dans le formulaire d'ajout de service
+document.getElementById('sv-usd').addEventListener('input', () => {
+    const usd = parseFloat(c('sv-usd'));
+    if (usd > 0) document.getElementById('sv-fc').value = Math.round(usd * parseFloat(document.getElementById('sv-rate').value || '2250'));
+});
+document.getElementById('sv-fc').addEventListener('input', () => {
+    const fc = parseFloat(c('sv-fc'));
+    if (fc > 0) document.getElementById('sv-usd').value = (fc / parseFloat(document.getElementById('sv-rate').value || '2250')).toFixed(2);
+});
+</script>
+{% endblock %}
