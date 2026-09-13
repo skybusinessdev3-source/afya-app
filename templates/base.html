@@ -93,7 +93,6 @@
         .animate-slide-in-left { animation: slideInLeft .4s ease both; }
         .animate-glow          { animation: glowPulse 2.5s ease-in-out infinite; }
 
-        /* Entrée en cascade */
         .stagger > * { animation: fadeUp .55s cubic-bezier(.22,1,.36,1) both; }
         .stagger > *:nth-child(1) { animation-delay: .05s; }
         .stagger > *:nth-child(2) { animation-delay: .12s; }
@@ -102,7 +101,6 @@
         .stagger > *:nth-child(5) { animation-delay: .33s; }
         .stagger > *:nth-child(6) { animation-delay: .40s; }
 
-        /* Liens sidebar : rebond d'icône + glissement */
         .side-link { transition: background-color .25s, color .25s, transform .2s, box-shadow .25s; }
         .side-link svg { transition: transform .35s cubic-bezier(.34,1.56,.64,1); }
         .side-link:hover { transform: translateX(4px); }
@@ -114,14 +112,12 @@
             box-shadow: inset 3px 0 0 #00d166, 0 0 14px rgba(0,209,102,.25);
         }
 
-        /* Cartes : soulèvement */
         .hover-lift { transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s; }
         .hover-lift:hover {
             transform: translateY(-5px);
             box-shadow: 0 12px 30px -10px rgba(0, 173, 83, .35);
         }
 
-        /* ================= NAVIGATION BASSE ================= */
         .bottom-nav {
             backdrop-filter: blur(20px) saturate(1.4);
             -webkit-backdrop-filter: blur(20px) saturate(1.4);
@@ -179,7 +175,7 @@
             <a href="{% url 'laboratory:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'laboratory' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="flask-conical" class="w-5 h-5"></i> Laboratoire
             </a>
-            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <a href="{% url 'home_care:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'home_care' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="house-plus" class="w-5 h-5"></i> Soins à domicile
             </a>
             <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
@@ -298,25 +294,25 @@
         <a href="{% url 'centre:day' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'centre' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="stethoscope" class="w-5 h-5"></i> Centre (jour)
         </a>
-        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+        <a href="{% url 'pharmacy:sale' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'pharmacy' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="pill" class="w-5 h-5"></i> Pharmacie
         </a>
-        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+        <a href="{% url 'laboratory:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'laboratory' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="flask-conical" class="w-5 h-5"></i> Laboratoire
         </a>
-        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+        <a href="{% url 'home_care:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'home_care' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="house-plus" class="w-5 h-5"></i> Soins à domicile
         </a>
 
         <p class="px-3 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">Gestion</p>
         <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <i data-lucide="calendar-days" class="w-5 h-5"></i> Rendez-vous
+        </a>
+        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
             <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
         </a>
         <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
             <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
-        </a>
-        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
-            <i data-lucide="user" class="w-5 h-5"></i> Mon profil
         </a>
         <a href="{% url 'admin:index' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
             <i data-lucide="settings" class="w-5 h-5"></i> Administration
@@ -346,7 +342,7 @@
 
 <!-- ================= NAVIGATION BASSE flottante (mobile/tablette) ================= -->
 {% if user.is_authenticated %}
-{% with un=request.resolver_match.url_name %}
+{% with ns=request.resolver_match.namespace un=request.resolver_match.url_name %}
 <nav class="lg:hidden fixed bottom-4 inset-x-4 z-40">
     <div class="bottom-nav bg-white/85 dark:bg-gray-900/85 border border-gray-200 dark:border-gray-700/80 rounded-2xl shadow-2xl shadow-black/20 flex items-end justify-around px-2 pt-3 pb-2">
 
@@ -369,9 +365,9 @@
                 <i data-lucide="plus" class="w-7 h-7"></i>
             </button>
             <div id="quick-actions" class="hidden absolute bottom-16 left-1/2 -translate-x-1/2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-2 space-y-1 animate-pop-in">
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="user-plus" class="w-4 h-4 text-brand-600"></i> Nouveau patient</a>
                 <a href="{% url 'centre:day' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="stethoscope" class="w-4 h-4 text-brand-600"></i> Nouvelle séance</a>
                 <a href="{% url 'pharmacy:sale' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="pill" class="w-4 h-4 text-brand-600"></i> Vente pharmacie</a>
+                <a href="{% url 'home_care:home' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="house-plus" class="w-4 h-4 text-brand-600"></i> Soins à domicile</a>
                 <a href="{% url 'centre:day' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="wallet" class="w-4 h-4 text-brand-600"></i> Dépense</a>
             </div>
         </div>

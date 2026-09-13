@@ -1,0 +1,336 @@
+{% extends 'base.html' %}
+{% block page_title %}Soins à domicile{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- ===== Formulaire (adaptatif) ===== -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+            <h3 class="font-bold mb-3 flex items-center gap-2">
+                <i data-lucide="house-plus" class="w-5 h-5 text-brand-600"></i> <span id="h-form-title">Nouvelle prestation</span>
+            </h3>
+
+            <div class="space-y-2">
+                <!-- Recherche patient -->
+                <div>
+                    <input id="h-patient-search" type="text" placeholder="Rechercher le patient…"
+                           class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                           autocomplete="off">
+                    <div id="h-patient-results" class="mt-2 space-y-1"></div>
+                    <div id="h-patient-selected" class="hidden mt-2 flex items-center justify-between px-3 py-2.5 rounded-xl bg-brand-50 dark:bg-brand-950 border border-brand-300 dark:border-brand-800 text-sm">
+                        <span class="font-semibold text-brand-700 dark:text-brand-300" id="h-patient-name"></span>
+                        <button onclick="clearPatient()" class="text-gray-400 hover:text-red-500 text-xs font-medium">Changer</button>
+                    </div>
+                </div>
+
+                <!-- Résumé prestation en cours (mode suivi) -->
+                <div id="h-service-summary" class="hidden p-3 rounded-xl bg-brand-50 dark:bg-brand-950 border border-brand-300 dark:border-brand-800 text-xs space-y-1">
+                    <p class="font-bold text-brand-700 dark:text-brand-300">Prestation en cours</p>
+                    <p>Médecin : <b id="hs-doctor"></b></p>
+                    <p>Séances : <b id="hs-sessions"></b></p>
+                    <p>Facturé : <b id="hs-billed"></b></p>
+                    <p>Payé : <b id="hs-paid"></b> $ — Reste dû : <b id="hs-balance" class="text-red-500"></b></p>
+                    <p class="text-gray-400">Réparti (sur les paiements) : médecin <b id="hs-part-doc"></b> $ · centre <b id="hs-part-center"></b> $</p>
+                </div>
+
+                <!-- Champs mode NOUVEAU uniquement -->
+                <div id="h-fields-new" class="space-y-2">
+                    <select id="h-doctor" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                        <option value="">— Médecin traitant —</option>
+                        {% for d in doctors %}<option value="{{ d.id }}">{{ d }}</option>{% endfor %}
+                    </select>
+                    <input id="h-sessions" type="number" min="1" value="1" placeholder="Séances prescrites *"
+                           class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <div class="flex gap-2">
+                        <input id="h-amount" type="number" min="0" step="0.01" placeholder="Montant facturé *"
+                               class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                        <select id="h-currency" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-brand-400 dark:border-brand-700 bg-white dark:bg-gray-800 text-sm font-semibold text-brand-700 dark:text-brand-300 outline-none">
+                            <option value="USD">$ USD</option>
+                            <option value="FC">FC</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Paiement (toujours visible) -->
+                <div class="flex gap-2">
+                    <input id="h-paid" type="number" min="0" step="0.01" placeholder="Montant payé (0 si rien)"
+                           class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <select id="h-paid-currency" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold outline-none">
+                        <option value="USD">$ USD</option>
+                        <option value="FC">FC</option>
+                    </select>
+                </div>
+                <input id="h-obs" type="text" placeholder="Observation (optionnel)…"
+                       class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+
+                <div id="h-feedback" class="hidden px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+                <button onclick="submitHomeCare(this)" id="h-submit-btn"
+                        class="w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+                    Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Tableau mensuel ===== -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i data-lucide="table" class="w-5 h-5 text-brand-600"></i> Prestations de {{ month_label }}
+                </h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                            <th class="px-4 py-3 font-medium">Date</th>
+                            <th class="px-4 py-3 font-medium">Patient</th>
+                            <th class="px-4 py-3 font-medium">Médecin</th>
+                            <th class="px-4 py-3 font-medium text-center">Séances (faites/prévues)</th>
+                            <th class="px-4 py-3 font-medium text-right">Facturé</th>
+                            <th class="px-4 py-3 font-medium text-right">Réparti médecin</th>
+                            <th class="px-4 py-3 font-medium text-right">Réparti centre</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        {% for item in records_data %}
+                        {% with r=item.r %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                            <td class="px-4 py-3 whitespace-nowrap">{{ r.date|date:"d/m/Y" }}</td>
+                            <td class="px-4 py-3 font-medium">{{ r.patient }}</td>
+                            <td class="px-4 py-3 text-gray-400">{{ r.doctor|default:"—" }}</td>
+                            <td class="px-4 py-3 text-center">{{ r.sessions_done }}/{{ r.sessions_prescribed }}</td>
+                            <td class="px-4 py-3 text-right font-semibold">
+                                {% if r.invoice %}{{ r.invoice.amount_original }} {{ r.invoice.currency_original }}{% else %}—{% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right text-gray-400">{{ item.doc }} $</td>
+                            <td class="px-4 py-3 text-right text-gray-400">{{ item.cen }} $</td>
+                        </tr>
+                        {% endwith %}
+                        {% empty %}
+                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Aucune prestation ce mois-ci.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL NOUVEAU PATIENT ================= -->
+<div id="patient-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closePatientModal()"></div>
+    <div class="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-5 h-5 text-brand-600"></i> Nouveau patient
+            </h3>
+            <button onclick="closePatientModal()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <input id="np-last-name" type="text" placeholder="Nom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="np-middle-name" type="text" placeholder="Post-nom" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="np-first-name" type="text" placeholder="Prénom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="np-sex" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">Sexe *</option>
+                <option value="M">Masculin</option>
+                <option value="F">Féminin</option>
+            </select>
+            <input id="np-phone" type="tel" placeholder="Téléphone" class="col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+        </div>
+
+        <div id="np-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+
+        <button onclick="submitNewPatient(this)"
+                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+            Enregistrer le patient
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let hcPatient = null, currentService = null, hTimer;
+const hInput = document.getElementById('h-patient-search');
+const hBox = document.getElementById('h-patient-results');
+
+/* ================= RECHERCHE PATIENT ================= */
+hInput.addEventListener('input', () => {
+    clearTimeout(hTimer);
+    const q = hInput.value.trim();
+    if (q.length < 2) { hBox.innerHTML = ''; return; }
+    hTimer = setTimeout(async () => {
+        const res = await fetch(`/centre/api/recherche-patients/?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        hBox.innerHTML = data.results.length
+            ? data.results.map(p => `
+                <button onclick='selectPatient(${JSON.stringify(p)})'
+                        class="w-full text-left px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition text-sm">
+                    <span class="font-semibold">${p.name}</span>
+                    <span class="text-xs text-gray-400"> — ${p.phone}</span>
+                </button>`).join('')
+            : `<div class="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs">
+                   Patient introuvable — <button onclick="openPatientModal()" class="font-semibold underline">créer le patient</button>
+               </div>`;
+    }, 250);
+});
+
+async function selectPatient(p) {
+    hcPatient = p;
+    hBox.innerHTML = '';
+    hInput.classList.add('hidden');
+    document.getElementById('h-patient-name').textContent = p.name;
+    document.getElementById('h-patient-selected').classList.remove('hidden');
+
+    const res = await fetch(`{% url 'home_care:patient_status' %}?patient_id=${p.id}`);
+    const st = await res.json();
+    if (st.has_service) {
+        currentService = st;
+        document.getElementById('h-form-title').textContent = 'Séance de suivi';
+        document.getElementById('h-submit-btn').textContent = 'Enregistrer la séance';
+        document.getElementById('h-fields-new').classList.add('hidden');
+        document.getElementById('h-service-summary').classList.remove('hidden');
+        document.getElementById('hs-doctor').textContent = st.doctor;
+        document.getElementById('hs-sessions').textContent = `${st.sessions_done}/${st.sessions_prescribed} (${st.sessions_remaining} restantes)`;
+        document.getElementById('hs-billed').textContent = st.billed;
+        document.getElementById('hs-paid').textContent = st.paid_usd;
+        document.getElementById('hs-balance').textContent = st.balance_usd + ' $';
+        document.getElementById('hs-part-doc').textContent = st.part_doctor_paid;
+        document.getElementById('hs-part-center').textContent = st.part_center_paid;
+    } else {
+        resetFormMode();
+    }
+}
+
+function resetFormMode() {
+    currentService = null;
+    document.getElementById('h-form-title').textContent = 'Nouvelle prestation';
+    document.getElementById('h-submit-btn').textContent = 'Enregistrer';
+    document.getElementById('h-fields-new').classList.remove('hidden');
+    document.getElementById('h-service-summary').classList.add('hidden');
+}
+
+function clearPatient() {
+    hcPatient = null;
+    hInput.classList.remove('hidden');
+    hInput.value = '';
+    document.getElementById('h-patient-selected').classList.add('hidden');
+    resetFormMode();
+}
+
+/* ================= MODAL NOUVEAU PATIENT ================= */
+function openPatientModal() {
+    document.getElementById('patient-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closePatientModal() {
+    document.getElementById('patient-modal').classList.add('hidden');
+}
+
+async function submitNewPatient(btn) {
+    const feedback = document.getElementById('np-feedback');
+    btn.disabled = true;
+
+    const payload = {
+        last_name: document.getElementById('np-last-name').value,
+        middle_name: document.getElementById('np-middle-name').value,
+        first_name: document.getElementById('np-first-name').value,
+        sex: document.getElementById('np-sex').value,
+        phone: document.getElementById('np-phone').value,
+        amount_due: '0',
+        currency: 'USD',
+    };
+
+    const res = await fetch("{% url 'patients:create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+        closePatientModal();
+        selectPatient(data.patient);
+    } else {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+/* ================= ENVOI ================= */
+async function submitHomeCare(btn) {
+    const feedback = document.getElementById('h-feedback');
+    btn.disabled = true;
+
+    if (!hcPatient) {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ Sélectionnez d\'abord un patient.';
+        btn.disabled = false;
+        return;
+    }
+
+    let payload;
+    if (currentService) {
+        payload = {
+            mode: 'session',
+            service_id: currentService.service_id,
+            amount_paid: document.getElementById('h-paid').value || '0',
+            paid_currency: document.getElementById('h-paid-currency').value,
+            observation: document.getElementById('h-obs').value,
+        };
+    } else {
+        payload = {
+            mode: 'nouveau',
+            patient_id: hcPatient.id,
+            doctor_id: document.getElementById('h-doctor').value || null,
+            sessions_prescribed: document.getElementById('h-sessions').value || 1,
+            amount: document.getElementById('h-amount').value,
+            currency: document.getElementById('h-currency').value,
+            amount_paid: document.getElementById('h-paid').value || '0',
+            paid_currency: document.getElementById('h-paid-currency').value,
+            observation: document.getElementById('h-obs').value,
+        };
+    }
+
+    const res = await fetch("{% url 'home_care:create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    feedback.classList.remove('hidden',
+        'bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+    if (data.success) {
+        feedback.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+        feedback.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 1200);
+    } else {
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie) {
+        document.cookie.split(';').forEach(c => {
+            const [k, v] = c.trim().split('=');
+            if (k === name) cookieValue = decodeURIComponent(v);
+        });
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}
