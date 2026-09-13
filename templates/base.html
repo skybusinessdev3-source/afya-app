@@ -62,6 +62,14 @@
         function toggleQuickActions() {
             document.getElementById('quick-actions').classList.toggle('hidden');
         }
+        /* Notifications */
+        async function markAllRead() {
+            await fetch("{% url 'notifications:mark_all_read' %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] },
+            });
+            location.reload();
+        }
     </script>
 
     <style>
@@ -178,7 +186,7 @@
             <a href="{% url 'home_care:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'home_care' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="house-plus" class="w-5 h-5"></i> Soins à domicile
             </a>
-            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <a href="{% url 'appointments:calendar' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'appointments' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="calendar-days" class="w-5 h-5"></i> Rendez-vous
             </a>
             <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
@@ -242,10 +250,33 @@
 
             <div class="flex items-center gap-2">
                 {% if user.is_authenticated %}
-                <button class="relative w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
-                    <i data-lucide="bell" class="w-5 h-5"></i>
-                    <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pop-in">3</span>
-                </button>
+                <!-- Cloche notifications -->
+                <div class="relative">
+                    <button onclick="document.getElementById('notif-panel').classList.toggle('hidden')"
+                            class="relative w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                        {% if unread_notifications_count %}
+                        <span class="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pop-in">{{ unread_notifications_count }}</span>
+                        {% endif %}
+                    </button>
+                    <div id="notif-panel" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl z-50 animate-pop-in overflow-hidden">
+                        <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                            <b class="text-sm">Notifications</b>
+                            <button onclick="markAllRead()" class="text-xs text-brand-600 dark:text-brand-400 font-semibold hover:underline">Tout marquer lu</button>
+                        </div>
+                        <div class="max-h-72 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                            {% for n in latest_notifications %}
+                            <div class="px-3 py-2.5 text-sm {% if not n.is_read %}bg-brand-50 dark:bg-brand-950/40{% endif %}">
+                                <p class="font-semibold">{{ n.title }}</p>
+                                <p class="text-xs text-gray-400">{{ n.message }}</p>
+                                <p class="text-[10px] text-gray-400 mt-0.5">{{ n.created_at|date:"d/m/Y H:i" }}</p>
+                            </div>
+                            {% empty %}
+                            <p class="p-4 text-sm text-gray-400 text-center">Aucune notification.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
                 {% endif %}
                 <button onclick="toggleTheme()" title="Changer de thème"
                         class="w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
@@ -303,11 +334,11 @@
         <a href="{% url 'home_care:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'home_care' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="house-plus" class="w-5 h-5"></i> Soins à domicile
         </a>
-
-        <p class="px-3 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">Gestion</p>
-        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+        <a href="{% url 'appointments:calendar' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'appointments' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="calendar-days" class="w-5 h-5"></i> Rendez-vous
         </a>
+
+        <p class="px-3 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">Gestion</p>
         <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
             <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
         </a>
@@ -368,11 +399,11 @@
                 <a href="{% url 'centre:day' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="stethoscope" class="w-4 h-4 text-brand-600"></i> Nouvelle séance</a>
                 <a href="{% url 'pharmacy:sale' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="pill" class="w-4 h-4 text-brand-600"></i> Vente pharmacie</a>
                 <a href="{% url 'home_care:home' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="house-plus" class="w-4 h-4 text-brand-600"></i> Soins à domicile</a>
-                <a href="{% url 'centre:day' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="wallet" class="w-4 h-4 text-brand-600"></i> Dépense</a>
+                <a href="{% url 'appointments:calendar' %}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-brand-50 dark:hover:bg-brand-950"><i data-lucide="calendar-plus" class="w-4 h-4 text-brand-600"></i> Rendez-vous</a>
             </div>
         </div>
 
-        <a href="#" class="bottom-item flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
+        <a href="{% url 'appointments:calendar' %}" class="bottom-item {% if ns == 'appointments' %}active{% endif %} flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
             <i data-lucide="calendar-days" class="w-6 h-6"></i>
             <span class="text-[10px] font-medium">Agenda</span>
             <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>

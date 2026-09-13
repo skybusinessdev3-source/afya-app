@@ -15,4 +15,6 @@ urlpatterns = [
     path('pharmacie/', include('apps.pharmacy.urls')),
     path('laboratoire/', include('apps.laboratory.urls')),
     path('soins-domicile/', include('apps.home_care.urls')),
+    path('rendez-vous/', include('apps.appointments.urls')),
+    path('notifications/', include('apps.notifications.urls')),
 ]

@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -58,6 +59,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'apps.notifications.context_processors.notifications_badge',
             ],
         },
     },
@@ -84,8 +86,9 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-AUTH_USER_MODEL = 'accounts.User'
 
+# Auth
+AUTH_USER_MODEL = 'accounts.User'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
