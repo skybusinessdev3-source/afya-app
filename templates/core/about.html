@@ -1,0 +1,216 @@
+{% extends 'base.html' %}
+{% block page_title %}À propos{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Halos d'ambiance flottants (comme le landing) */
+    .about-halo {
+        position: absolute; border-radius: 50%; filter: blur(70px); opacity: .25; pointer-events: none;
+        animation: haloFloat 9s ease-in-out infinite;
+    }
+    @keyframes haloFloat {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50%      { transform: translate(30px, -25px) scale(1.12); }
+    }
+
+    /* ECG qui se dessine + pulse */
+    .ecg-line path {
+        stroke-dasharray: 700;
+        stroke-dashoffset: 700;
+        animation: ecgDraw 2.2s ease-out .4s forwards, ecgGlow 1.8s ease-in-out 2.6s infinite;
+    }
+    @keyframes ecgDraw { to { stroke-dashoffset: 0; } }
+    @keyframes ecgGlow {
+        0%, 100% { filter: drop-shadow(0 0 3px rgba(255,255,255,.6)); }
+        50%      { filter: drop-shadow(0 0 10px rgba(255,255,255,.9)); }
+    }
+
+    /* Logo battement de cœur */
+    .about-logo { animation: logoBeat 1.8s ease-in-out 1.4s infinite; }
+    @keyframes logoBeat {
+        0%, 100% { transform: scale(1); }
+        14%      { transform: scale(1.07); }
+        28%      { transform: scale(1); }
+        42%      { transform: scale(1.04); }
+        56%      { transform: scale(1); }
+    }
+
+    /* Lignes de la liste — effet WhatsApp + glissement */
+    .feature-row { transition: transform .25s cubic-bezier(.22,1,.36,1), background .2s; }
+    .feature-row:hover { transform: translateX(4px); }
+    .feature-row:hover .feat-icon { transform: scale(1.1) rotate(-4deg); }
+    .feat-icon { transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
+
+    /* Cartes sécurité */
+    .sec-card { transition: transform .25s, box-shadow .25s, border-color .25s; }
+    .sec-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 28px -10px rgba(0,173,83,.35);
+        border-color: rgba(0,173,83,.5);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-5 pb-8">
+
+    <!-- ============================================================
+         EN-TÊTE — hero animé (ECG + halos + battement de cœur)
+    ============================================================ -->
+    <div class="rounded-2xl overflow-hidden shadow-xl animate-fade-up relative">
+        <div class="bg-gradient-to-br from-[#075e54] via-brand-800 to-brand-600 p-8 sm:p-10 text-white text-center relative overflow-hidden">
+
+            <!-- Halos animés -->
+            <div class="about-halo w-64 h-64 bg-brand-400 -top-20 -right-16"></div>
+            <div class="about-halo w-72 h-72 bg-brand-300 -bottom-24 -left-16" style="animation-delay:3s"></div>
+            <div class="about-halo w-40 h-40 bg-white top-1/3 left-1/4" style="animation-delay:5s; opacity:.12"></div>
+
+            <div class="relative">
+                <!-- Logo battant -->
+                <div class="about-logo w-20 h-20 mx-auto rounded-full bg-white flex items-center justify-center shadow-lg">
+                    <i data-lucide="activity" class="w-10 h-10 text-brand-600"></i>
+                </div>
+
+                <!-- ECG qui se dessine sous le nom -->
+                <svg class="ecg-line w-56 sm:w-72 h-10 mx-auto mt-3" viewBox="0 0 300 40" fill="none">
+                    <path d="M0 22 H60 L72 22 L80 8 L90 34 L98 16 L104 22 H140 L150 14 L158 22 H200 L210 4 L222 38 L230 22 H300"
+                          stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+
+                <h2 class="text-3xl font-black tracking-wide">AFYA APP</h2>
+                <p class="text-white/80 text-sm mt-1 max-w-md mx-auto">Centre de Rééducation Fonctionnelle Moderne de Kinshasa</p>
+
+                <div class="inline-flex items-center gap-2 mt-3 px-3 py-1 rounded-full bg-white/15 text-xs">
+                    <i data-lucide="badge-check" class="w-3.5 h-3.5"></i> Version 1.0 · Django + Tailwind + PostgreSQL
+                </div>
+
+                <!-- Puce statut en ligne (clin d'œil WhatsApp) -->
+                <div class="mt-4 flex items-center justify-center gap-1.5 text-xs text-white/70">
+                    <span class="w-2 h-2 rounded-full bg-green-300 animate-pulse"></span> Système opérationnel
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         FONCTIONNALITÉS — style liste de discussions WhatsApp
+    ============================================================ -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm animate-fade-up" style="animation-delay:.08s">
+        <div class="px-5 py-4 bg-[#075e54] dark:bg-[#0b3d38] text-white flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i data-lucide="layout-grid" class="w-5 h-5"></i>
+                <b>Fonctionnalités de l'application</b>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-white/15">{{ features|length }} modules</span>
+        </div>
+
+        {% for f in features %}
+        <div class="feature-row flex items-center gap-3.5 px-4 py-3.5 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/60 cursor-default" style="animation-delay:{{ forloop.counter0|add:1 }}5ms">
+            <div class="feat-icon w-12 h-12 shrink-0 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-md shadow-brand-600/30">
+                <i data-lucide="{{ f.icon }}" class="w-6 h-6"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="font-bold text-sm truncate">{{ f.titre }}</p>
+                <p class="text-xs text-gray-400 truncate mt-0.5">{{ f.desc }}</p>
+            </div>
+            <div class="w-16 h-12 shrink-0 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                {{ f.svg|safe }}
+            </div>
+        </div>
+        {% empty %}
+        <p class="p-6 text-center text-sm text-gray-400">Aucune fonctionnalité listée pour le moment.</p>
+        {% endfor %}
+    </div>
+
+    <!-- ============================================================
+         SÉCURITÉ — grille de cartes interactives
+    ============================================================ -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm animate-fade-up" style="animation-delay:.16s">
+        <div class="px-5 py-4 bg-[#075e54] dark:bg-[#0b3d38] text-white flex items-center gap-2">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+            <b>Sécurité & intégrité des données</b>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
+            <div class="sec-card flex items-start gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-800/40">
+                <div class="w-9 h-9 shrink-0 rounded-lg bg-brand-100 dark:bg-brand-950 flex items-center justify-center">
+                    <i data-lucide="lock" class="w-4.5 h-4.5 text-brand-600 dark:text-brand-400"></i>
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Authentification sécurisée avec rôles — chaque permission vérifiée <b>côté serveur</b>, jamais seulement à l'écran.</p>
+            </div>
+            <div class="sec-card flex items-start gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-800/40">
+                <div class="w-9 h-9 shrink-0 rounded-lg bg-brand-100 dark:bg-brand-950 flex items-center justify-center">
+                    <i data-lucide="list-checks" class="w-4.5 h-4.5 text-brand-600 dark:text-brand-400"></i>
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Journal d'audit : chaque action sensible est <b>tracée</b> avec utilisateur, date et adresse IP.</p>
+            </div>
+            <div class="sec-card flex items-start gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-800/40">
+                <div class="w-9 h-9 shrink-0 rounded-lg bg-brand-100 dark:bg-brand-950 flex items-center justify-center">
+                    <i data-lucide="arrow-right-left" class="w-4.5 h-4.5 text-brand-600 dark:text-brand-400"></i>
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Multi-devise (USD / FC) avec taux <b>historisé</b> — une vieille transaction garde le taux du jour J.</p>
+            </div>
+            <div class="sec-card flex items-start gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-800/40">
+                <div class="w-9 h-9 shrink-0 rounded-lg bg-brand-100 dark:bg-brand-950 flex items-center justify-center">
+                    <i data-lucide="pin" class="w-4.5 h-4.5 text-brand-600 dark:text-brand-400"></i>
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Répartitions <b>figées à l'enregistrement</b> — changer un pourcentage ne réécrit jamais l'historique.</p>
+            </div>
+            <div class="sec-card flex items-start gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-800/40 sm:col-span-2">
+                <div class="w-9 h-9 shrink-0 rounded-lg bg-brand-100 dark:bg-brand-950 flex items-center justify-center">
+                    <i data-lucide="database" class="w-4.5 h-4.5 text-brand-600 dark:text-brand-400"></i>
+                </div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Transactions financières <b>atomiques</b> et aucune suppression physique : une erreur n'efface jamais une preuve.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         STACK TECHNIQUE — badges façon conversation
+    ============================================================ -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm animate-fade-up px-5 py-4" style="animation-delay:.2s">
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mr-1">Stack</span>
+            {% for tech in "Django,Tailwind CSS,PostgreSQL,Lucide,Chart.js"|cut:" "|slice:":" %}{% endfor %}
+            <span class="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5"><i data-lucide="check" class="w-3 h-3 text-brand-500"></i>Django</span>
+            <span class="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5"><i data-lucide="check" class="w-3 h-3 text-brand-500"></i>Tailwind CSS</span>
+            <span class="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5"><i data-lucide="check" class="w-3 h-3 text-brand-500"></i>PostgreSQL</span>
+            <span class="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5"><i data-lucide="check" class="w-3 h-3 text-brand-500"></i>Lucide Icons</span>
+            <span class="px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5"><i data-lucide="check" class="w-3 h-3 text-brand-500"></i>Chart.js</span>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         CRÉDITS — développeur, effet carte de visite
+    ============================================================ -->
+    <div class="rounded-2xl overflow-hidden shadow-xl animate-fade-up relative" style="animation-delay:.24s">
+        <div class="bg-gradient-to-br from-[#075e54] to-brand-600 p-6 sm:p-7 text-white relative overflow-hidden">
+            <div class="about-halo w-48 h-48 bg-white -top-20 -right-10" style="opacity:.08"></div>
+            <div class="flex flex-col sm:flex-row items-center gap-5 relative">
+                <div class="w-16 h-16 shrink-0 rounded-full bg-white flex items-center justify-center text-[#075e54] text-2xl font-black shadow-lg ring-4 ring-white/20">RW</div>
+                <div class="text-center sm:text-left flex-1">
+                    <p class="font-extrabold text-lg flex items-center justify-center sm:justify-start gap-2">
+                        Ir. Rossy Wanose
+                        <i data-lucide="badge-check" class="w-4 h-4 text-green-300"></i>
+                    </p>
+                    <p class="text-white/75 text-sm">Ingénieur Logiciel — Concepteur & Développeur d'AFYA APP</p>
+                    <div class="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1.5 mt-3 text-sm text-white/90">
+                        <a href="mailto:skyrossywanose@gmail.com" class="flex items-center gap-1.5 hover:text-white hover:underline transition">
+                            <i data-lucide="mail" class="w-4 h-4"></i> skyrossywanose@gmail.com
+                        </a>
+                        <a href="https://www.skybusiness.kesug.com" target="_blank" rel="noopener" class="flex items-center gap-1.5 hover:text-white hover:underline transition">
+                            <i data-lucide="globe" class="w-4 h-4"></i> www.skybusiness.kesug.com
+                        </a>
+                        <a href="tel:+243890030685" class="flex items-center gap-1.5 hover:text-white hover:underline transition">
+                            <i data-lucide="phone" class="w-4 h-4"></i> +243 890 030 685
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="bg-[#0b3d38] px-5 py-2.5 text-center text-xs text-white/50">
+            © {% now "Y" %} CRF-MK · AFYA APP — Tous droits réservés
+        </div>
+    </div>
+
+</div>
+{% endblock %}

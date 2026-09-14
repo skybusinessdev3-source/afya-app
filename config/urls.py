@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-from apps.core.views import dashboard, landing
+from apps.core.views import dashboard, landing, about_page
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -25,6 +25,7 @@ urlpatterns = [
     path('compte/', include('apps.accounts.urls')),
     path('messagerie/', include('apps.messaging.urls')),
     path('medecine/', include('apps.medicine.urls')),
+    path('a-propos/', about_page, name='about'),
 ]
 
 if settings.DEBUG:

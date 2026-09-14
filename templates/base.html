@@ -157,7 +157,7 @@
     {% if user.is_authenticated %}
     {% with ns=request.resolver_match.namespace un=request.resolver_match.url_name %}
     <aside class="hidden lg:flex w-64 flex-col bg-white dark:bg-gray-900/80 dark:backdrop-blur-xl border-r border-gray-200 dark:border-gray-800/80 sticky top-0 h-screen animate-slide-in-left">
-        <div class="h-16 flex items-center gap-3 px-5 border-b border-gray-200 dark:border-gray-800/80">
+        <a href="{% url 'about' %}" title="À propos de AFYA APP" class="h-16 flex items-center gap-3 px-5 border-b border-gray-200 dark:border-gray-800/80 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition shrink-0">
             <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-lg shadow-brand-500/40 animate-glow">
                 <i data-lucide="activity" class="w-6 h-6"></i>
             </div>
@@ -165,7 +165,7 @@
                 <p class="font-extrabold text-brand-700 dark:text-brand-400">CRF-MK</p>
                 <p class="text-[11px] text-gray-400">AFYA APP</p>
             </div>
-        </div>
+        </a>
 
         <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1 text-sm">
             <a href="{% url 'dashboard' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if un == 'dashboard' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
@@ -249,7 +249,7 @@
                     <span class="font-extrabold text-brand-700 dark:text-brand-400">CRF-MK</span>
                 </a>
             </div>
-            <h1 class="hidden lg:block text-lg font-bold">{% block page_title %}AFYA APP{% endblock %}</h1>
+            <a href="{% url 'about' %}" title="À propos de AFYA APP" class="hidden lg:block text-lg font-bold hover:text-brand-600 dark:hover:text-brand-400 transition">{% block page_title %}AFYA APP{% endblock %}</a>
             {% else %}
             <div class="flex items-center gap-2">
                 <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white">
@@ -312,7 +312,7 @@
 
 <!-- ================= TIROIR LATÉRAL (mobile/tablette) ================= -->
 {% if user.is_authenticated %}
-{% with ns=request.resolver_match.namespace %}
+{% with ns=request.resolver_match.namespace un=request.resolver_match.url_name %}
 <div id="drawer-backdrop" onclick="closeDrawer()"
      class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300 lg:hidden"></div>
 
@@ -353,13 +353,13 @@
         <a href="{% url 'reports:daily' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'reports' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
         </a>
-        <a href="{% url 'messaging:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+        <a href="{% url 'messaging:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'messaging' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
         </a>
-        <a href="{% url 'medicine:general' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'medicine' and un == 'general' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+        <a href="{% url 'medicine:general' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'medicine' and un == 'general' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="clipboard-plus" class="w-5 h-5"></i> Médecine générale
         </a>
-        <a href="{% url 'medicine:manual' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'medicine' and un == 'manual' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+        <a href="{% url 'medicine:manual' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'medicine' and un == 'manual' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="hand" class="w-5 h-5"></i> Médecine manuelle
         </a>
         <a href="{% url 'admin:index' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
@@ -431,11 +431,10 @@
             <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>
         </a>
 
-        <a href="#" class="bottom-item relative flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
+        <a href="{% url 'messaging:home' %}" class="bottom-item {% if ns == 'messaging' %}active{% endif %} flex flex-col items-center gap-0.5 w-16 text-gray-500 dark:text-gray-400">
             <i data-lucide="message-circle" class="w-6 h-6"></i>
             <span class="text-[10px] font-medium">Messages</span>
             <span class="dot w-1.5 h-1.5 rounded-full bg-brand-500"></span>
-            <span class="absolute -top-1 right-3 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center animate-pop-in">8</span>
         </a>
     </div>
 </nav>
