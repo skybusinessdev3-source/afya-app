@@ -1,0 +1,114 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRF-MK — AFYA APP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { brand: {
+                50:'#eafff3',100:'#c8ffe0',200:'#92ffc4',300:'#4bf89f',400:'#13e97c',
+                500:'#00d166',600:'#00ad53',700:'#018945',800:'#066c39',900:'#075931',950:'#01321b',
+            } } } }
+        }
+    </script>
+    <style>
+        body { background: #02100a; overflow: hidden; }
+
+        /* Fond animé : halos verts pulsants */
+        .halo {
+            position: absolute; border-radius: 50%; filter: blur(80px); opacity: .35;
+            animation: haloFloat 8s ease-in-out infinite;
+        }
+        @keyframes haloFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50%      { transform: translate(40px, -30px) scale(1.15); }
+        }
+
+        /* Logo : apparition + battement */
+        .logo-wrap { animation: logoIn 1s cubic-bezier(.34,1.56,.64,1) both, logoBeat 1.6s ease-in-out 1.2s infinite; }
+        @keyframes logoIn {
+            from { transform: scale(.3) rotate(-10deg); opacity: 0; }
+            to   { transform: scale(1) rotate(0); opacity: 1; }
+        }
+        @keyframes logoBeat {
+            0%, 100% { transform: scale(1); }
+            12%      { transform: scale(1.08); }
+            24%      { transform: scale(1); }
+            36%      { transform: scale(1.05); }
+            48%      { transform: scale(1); }
+        }
+
+        /* Trace ECG qui se dessine */
+        .ecg path {
+            stroke-dasharray: 600;
+            stroke-dashoffset: 600;
+            animation: ecgDraw 2s ease-out .6s forwards, ecgGlow 1.6s ease-in-out 2.6s infinite;
+        }
+        @keyframes ecgDraw { to { stroke-dashoffset: 0; } }
+        @keyframes ecgGlow {
+            0%, 100% { filter: drop-shadow(0 0 4px #00d166); }
+            50%      { filter: drop-shadow(0 0 14px #00d166); }
+        }
+
+        /* Nom lettre par lettre */
+        .letter { display: inline-block; opacity: 0; transform: translateY(24px); animation: letterIn .5s cubic-bezier(.34,1.56,.64,1) forwards; }
+        @keyframes letterIn { to { opacity: 1; transform: translateY(0); } }
+
+        /* Barre de chargement */
+        .loadbar { animation: loadFill 2.6s ease-out .3s forwards; }
+        @keyframes loadFill { from { width: 0; } to { width: 100%; } }
+
+        .fade-slow { animation: fadeIn 1s ease both; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center relative">
+
+    <!-- Halos d'ambiance -->
+    <div class="halo w-96 h-96 bg-brand-600 top-[-10%] left-[-10%]"></div>
+    <div class="halo w-[28rem] h-[28rem] bg-brand-800 bottom-[-15%] right-[-10%]" style="animation-delay:2s"></div>
+    <div class="halo w-64 h-64 bg-brand-500 top-[40%] right-[20%]" style="animation-delay:4s; opacity:.2"></div>
+
+    <a href="{% url 'login' %}" class="relative z-10 flex flex-col items-center gap-6 px-6 cursor-pointer select-none">
+
+        <!-- Logo + ECG -->
+        <div class="logo-wrap relative">
+            <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-[2rem] bg-gradient-to-br from-brand-400 to-brand-800 flex items-center justify-center shadow-[0_0_60px_rgba(0,209,102,.5)] border border-brand-300/30 overflow-hidden">
+                {% if logo_url %}
+                <img src="{{ logo_url }}" alt="CRF-MK" class="w-24 h-24 sm:w-28 sm:h-28 object-contain">
+                {% else %}
+                <svg class="ecg w-20 h-20" viewBox="0 0 100 100" fill="none">
+                    <path d="M5 55 H25 L33 30 L42 75 L50 45 L55 55 H70 L75 48 L80 55 H95"
+                          stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Nom animé lettre par lettre -->
+        <h1 class="text-4xl sm:text-6xl font-black tracking-widest text-white">
+            {% for letter in "CRF-MK" %}<span class="letter" style="animation-delay: {{ forloop.counter0|add:7 }}00ms">{{ letter }}</span>{% endfor %}
+        </h1>
+
+        <p class="fade-slow text-brand-300 text-sm sm:text-base tracking-[.35em] uppercase" style="animation-delay:1.4s">
+            Afya App — Gestion du centre médical
+        </p>
+
+        <!-- Barre de chargement -->
+        <div class="w-56 sm:w-72 h-1.5 rounded-full bg-white/10 overflow-hidden fade-slow" style="animation-delay:.5s">
+            <div class="loadbar h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300"></div>
+        </div>
+
+        <p class="fade-slow text-white/40 text-xs" style="animation-delay:2s">Cliquez n'importe où pour continuer</p>
+    </a>
+
+    <script>
+        // Redirection automatique après l'animation
+        setTimeout(() => { window.location.href = "{% url 'login' %}"; }, 3200);
+    </script>
+</body>
+</html>

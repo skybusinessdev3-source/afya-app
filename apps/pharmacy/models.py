@@ -97,7 +97,8 @@ class PharmacySale(TimeStampedModel):
             self.total_usd = self.unit_price_usd * self.quantity
             self.total_fc = self.unit_price_fc * self.quantity
         super().save(*args, **kwargs)
-        if self.pk and not self.movements.exists():
+        # OneToOne : on ne peut PAS utiliser self.movements.exists() (lève une exception)
+        if self.pk and not StockMovement.objects.filter(sale=self).exists():
             StockMovement.objects.create(
                 product=self.product,
                 movement_type=StockMovement.Type.OUT,
@@ -105,6 +106,7 @@ class PharmacySale(TimeStampedModel):
                 reason=f"Vente ({self.patient or 'client comptant'})",
                 date=self.date,
                 created_by=self.sold_by,
+                sale=self,
             )
 
     class Meta:

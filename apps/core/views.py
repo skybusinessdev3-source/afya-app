@@ -66,3 +66,21 @@ def dashboard(request):
         'chart_exp_fc': json.dumps(chart_exp_fc),
     }
     return render(request, 'core/dashboard.html', context)
+
+from django.shortcuts import redirect
+
+
+def landing(request):
+    """Page d'accueil animée (non connectés). Les connectés vont au dashboard."""
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return render(request, 'core/landing.html')
+
+from django.conf import settings
+from django.templatetags.static import static as static_url
+
+
+def landing(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return render(request, 'core/landing.html', {'logo_url': static_url('img/logo.png')})

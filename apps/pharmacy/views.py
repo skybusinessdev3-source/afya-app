@@ -2,18 +2,18 @@ import json
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from django.db import transaction
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.finance.models import Invoice, Payment
 from apps.patients.models import Patient
-from .models import PharmacyProduct, PharmacySale
+from .models import PharmacyProduct, PharmacySale, StockMovement
 
 
 def get_client_ip(request):
@@ -38,15 +38,10 @@ def pharmacy_sale(request):
 
 @login_required
 def product_search(request):
-    """Recherche instantanée de produits (AJAX)."""
     q = request.GET.get('q', '').strip()
     if len(q) < 2:
         return JsonResponse({'results': []})
-
-    products = PharmacyProduct.objects.filter(
-        Q(name__icontains=q), is_active=True,
-    )[:8]
-
+    products = PharmacyProduct.objects.filter(Q(name__icontains=q), is_active=True)[:8]
     results = [{
         'id': p.id,
         'name': p.name,
@@ -62,44 +57,53 @@ def product_search(request):
 @transaction.atomic
 def sale_create(request):
     """
-    Enregistre une vente : déduit le stock (mouvement tracé automatique)
-    + facture du MONTANT DÛ + paiement éventuel.
+    Vente panier : plusieurs produits d'un coup.
+    - 1 facture unique (total recalculé CÔTÉ SERVEUR)
+    - 1 vente + 1 mouvement de stock par produit
+    - paiement éventuel (devise libre)
     """
     try:
         data = json.loads(request.body)
-        product = PharmacyProduct.objects.get(pk=data['product_id'], is_active=True)
-        quantity = int(data.get('quantity', 1))
 
-        if quantity <= 0:
-            return JsonResponse({'success': False, 'message': "Quantité invalide."}, status=400)
-
-        # Anti stock négatif : vérifié CÔTÉ SERVEUR (§11)
-        if quantity > product.stock_available:
-            return JsonResponse({
-                'success': False,
-                'message': f"Stock insuffisant pour « {product.name} » "
-                           f"(disponible : {product.stock_available}, demandé : {quantity}).",
-            }, status=400)
-
-        patient_id = data.get('patient_id') or None
+        patient_id = data.get('patient_id')
         patient = Patient.objects.filter(pk=patient_id, is_active=True).first() if patient_id else None
 
-        # --- Vente (le mouvement de stock est créé automatiquement par le modèle) ---
-        sale = PharmacySale.objects.create(
-            patient=patient,
-            product=product,
-            quantity=quantity,
-            sold_by=request.user,
-        )
-        log_event(user=request.user, action=AuditLog.Actions.CREATE,
-                  module='pharmacy', obj=sale, ip_address=get_client_ip(request))
+        items = data.get('items', [])
+        if not items:
+            return JsonResponse({'success': False, 'message': "Ajoutez au moins un produit."}, status=400)
 
-        # --- Facture du montant dû + paiement éventuel ---
+        # Vérification stock + récupération produits (serveur = autorité, §11)
+        lines = []
+        for it in items:
+            product = PharmacyProduct.objects.select_for_update().get(
+                pk=it['product_id'], is_active=True)
+            qty = int(it.get('quantity', 1))
+            if qty <= 0:
+                return JsonResponse({'success': False, 'message': f"Quantité invalide : {product.name}"}, status=400)
+            if qty > product.stock_available:
+                return JsonResponse({
+                    'success': False,
+                    'message': f"Stock insuffisant pour « {product.name} » "
+                               f"(dispo: {product.stock_available}, demandé: {qty}).",
+                }, status=400)
+            lines.append((product, qty))
+
+        # Total recalculé serveur
         currency = data.get('currency', 'USD')
-        due = sale.total_fc if currency == 'FC' else sale.total_usd
+        total_usd = sum(p.price_usd * q for p, q in lines)
+        total_fc = sum(p.price_fc * q for p, q in lines)
+        due = total_fc if currency == 'FC' else total_usd
+
+        # Ventes + mouvements (créés par le modèle)
+        for product, qty in lines:
+            sale = PharmacySale.objects.create(
+                patient=patient, product=product, quantity=qty, sold_by=request.user)
+            log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                      module='pharmacy', obj=sale, ip_address=get_client_ip(request))
+
         invoice = Invoice.objects.create(
             patient=patient,
-            label=f"Pharmacie — {product.name} ×{quantity}",
+            label=f"Pharmacie — {len(lines)} article(s)",
             amount_original=due,
             currency_original=currency,
             created_by=request.user,
@@ -112,7 +116,7 @@ def sale_create(request):
             payment = Payment.objects.create(
                 invoice=invoice,
                 amount_original=amount_paid,
-                currency_original=currency,
+                currency_original=data.get('paid_currency', currency),
                 received_by=request.user,
             )
             log_event(user=request.user, action=AuditLog.Actions.CREATE,
@@ -120,17 +124,18 @@ def sale_create(request):
 
         return JsonResponse({
             'success': True,
-            'message': f"Vente enregistrée : {product.name} ×{quantity}",
-            'stock_remaining': product.stock_available,
-            'total_usd': float(sale.total_usd),
-            'total_fc': float(sale.total_fc),
+            'message': f"Vente enregistrée : {len(lines)} article(s)"
+                       + (f" pour {patient.full_name}" if patient else " (client comptant)"),
+            'total_usd': float(total_usd),
+            'total_fc': float(total_fc),
         })
 
     except PharmacyProduct.DoesNotExist:
         return JsonResponse({'success': False, 'message': "Produit introuvable."}, status=404)
     except (InvalidOperation, ValueError, KeyError):
         return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)
-    
+
+
 @login_required
 @require_POST
 @transaction.atomic
@@ -149,9 +154,7 @@ def product_create(request):
             return JsonResponse({'success': False, 'message': "Un produit porte déjà ce nom."}, status=400)
 
         product = PharmacyProduct.objects.create(
-            name=name,
-            price_usd=price_usd,
-            price_fc=price_fc,
+            name=name, price_usd=price_usd, price_fc=price_fc,
             expiry_date=data.get('expiry_date') or None,
             observation=data.get('observation', ''),
         )
@@ -160,19 +163,12 @@ def product_create(request):
 
         if initial_qty > 0:
             movement = StockMovement.objects.create(
-                product=product,
-                movement_type=StockMovement.Type.IN,
-                quantity=initial_qty,
-                reason="Stock initial",
-                created_by=request.user,
-            )
+                product=product, movement_type=StockMovement.Type.IN,
+                quantity=initial_qty, reason="Stock initial", created_by=request.user)
             log_event(user=request.user, action=AuditLog.Actions.CREATE,
                       module='pharmacy', obj=movement, ip_address=get_client_ip(request))
 
-        return JsonResponse({
-            'success': True,
-            'message': f"Produit « {product.name} » créé (stock : {product.stock_available}).",
-        })
-
+        return JsonResponse({'success': True,
+                             'message': f"Produit « {product.name} » créé (stock : {product.stock_available})."})
     except (InvalidOperation, ValueError):
         return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)
