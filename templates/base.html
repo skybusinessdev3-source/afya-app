@@ -192,7 +192,7 @@
             <a href="{% url 'reports:daily' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'reports' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
             </a>
-            <a href="#" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+            <a href="{% url 'messaging:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'messaging' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
             </a>
             <a href="{% url 'settings_app:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'settings_app' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
@@ -347,7 +347,7 @@
         <a href="{% url 'reports:daily' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'reports' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
         </a>
-        <a href="#" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+        <a href="{% url 'messaging:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
             <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
         </a>
         <a href="{% url 'admin:index' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">

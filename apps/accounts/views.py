@@ -7,6 +7,7 @@ from django.views.decorators.http import require_POST
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from django.shortcuts import redirect
+from .models import User, RegistrationCode
 
 
 def get_client_ip(request):
@@ -80,3 +81,58 @@ def profile_password(request):
     log_event(user=request.user, action=AuditLog.Actions.UPDATE,
               module='accounts', obj=request.user, ip_address=get_client_ip(request))
     return JsonResponse({'success': True, 'message': 'Mot de passe modifié. Veuillez vous reconnecter.'})
+
+from django.contrib.auth import login as auth_login
+from django.shortcuts import redirect, render
+
+from .models import RegistrationCode
+
+
+def register_page(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return render(request, 'accounts/register.html', {'page_title': 'Créer un compte'})
+
+
+@require_POST
+def register(request):
+    """Création de compte via code d'invitation (§17.2)."""
+    code_str = request.POST.get('code', '').strip()
+    username = request.POST.get('username', '').strip()
+    password = request.POST.get('password', '')
+    first_name = request.POST.get('first_name', '').strip()
+    last_name = request.POST.get('last_name', '').strip()
+
+    if not all([code_str, username, password]):
+        messages.error(request, 'Code, nom d\'utilisateur et mot de passe obligatoires.')
+        return redirect('accounts:register')
+
+    if len(password) < 8:
+        messages.error(request, 'Mot de passe : 8 caractères minimum.')
+        return redirect('accounts:register')
+
+    if User.objects.filter(username__iexact=username).exists():
+        messages.error(request, 'Ce nom d\'utilisateur est déjà pris.')
+        return redirect('accounts:register')
+
+    code = RegistrationCode.objects.filter(code=code_str).first()
+    if code is None or not code.is_valid():
+        messages.error(request, 'Code invalide, expiré ou déjà utilisé.')
+        return redirect('accounts:register')
+
+    user = User.objects.create_user(
+        username=username,
+        password=password,
+        first_name=first_name,
+        last_name=last_name,
+        role=code.role,
+        must_change_password=True,  # force le changement à la 1ʳᵉ connexion
+    )
+    code.use_count += 1
+    code.used_by = user
+    code.save()
+    log_event(user=user, action=AuditLog.Actions.CREATE,
+              module='accounts', obj=user, ip_address=get_client_ip(request))
+    auth_login(request, user)
+    messages.success(request, f'Compte créé ! Bienvenue {user.first_name or user.username}.')
+    return redirect('dashboard')

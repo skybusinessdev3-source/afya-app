@@ -1,0 +1,742 @@
+{% extends 'base.html' %}
+{% block page_title %}Messagerie{% endblock %}
+
+{% block extra_css %}
+<style>
+    .msg-row > .bubble { flex: 0 0 auto; max-width: 80%; }
+    .bubble { position: relative; width: max-content; max-width: 100%; box-shadow: 0 1px 1px rgba(0,0,0,.08); }
+    .bubble p { overflow-wrap: anywhere; word-break: break-word; }
+    .bubble-mine { border-bottom-right-radius: 4px !important; }
+    .bubble-mine::after { content: ''; position: absolute; bottom: 0; right: -8px; border: 8px solid transparent; border-bottom-color: #00ad53; border-right-width: 0; }
+    .bubble-other { border-bottom-left-radius: 4px !important; }
+    .bubble-other::after { content: ''; position: absolute; bottom: 0; left: -8px; border: 8px solid transparent; border-bottom-color: #f3f4f6; border-left-width: 0; }
+    .dark .bubble-other::after { border-bottom-color: #1f2937; }
+    #nc-panel { transition: transform .3s cubic-bezier(.22,1,.36,1); }
+    .msg-scroll::-webkit-scrollbar { width: 6px; }
+    .msg-scroll::-webkit-scrollbar-thumb { background: rgba(0,173,83,.3); border-radius: 3px; }
+    #ctx-menu { position: fixed; z-index: 100; min-width: 190px; }
+    .ctx-item { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left; padding: .55rem .9rem; font-size: .8rem; }
+    .ctx-item:hover { background: rgba(0,173,83,.12); }
+    .msg-star { position: absolute; top: -7px; left: -7px; z-index: 5; }
+    /* Micro en enregistrement */
+    .recording { background: #ef4444 !important; color: #fff !important; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex gap-4 h-[calc(100vh-6.5rem)] -m-2 sm:-m-4 p-2 sm:p-4">
+
+    <!-- ================= COLONNE CONVERSATIONS ================= -->
+    <div id="conv-column" class="w-full sm:w-80 lg:w-96 shrink-0 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden animate-fade-up shadow-sm">
+        <div class="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-brand-50 to-transparent dark:from-brand-950/40">
+            <div>
+                <h3 class="font-extrabold text-lg flex items-center gap-2">
+                    <i data-lucide="messages-square" class="w-5 h-5 text-brand-600"></i> Messages
+                </h3>
+                <p class="text-xs text-gray-400">Discussions de l'équipe</p>
+            </div>
+            <button onclick="openNewChat()" title="Nouvelle discussion"
+                    class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center shadow-lg shadow-brand-600/30 hover:scale-105 active:scale-95 transition">
+                <i data-lucide="square-pen" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div class="px-3 pt-3">
+            <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input id="conv-filter" type="text" placeholder="Rechercher une discussion…"
+                       class="w-full pl-9 pr-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border-transparent text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                       oninput="filterConversations()">
+            </div>
+        </div>
+        <div id="conv-list" class="flex-1 overflow-y-auto msg-scroll mt-2 px-2 pb-2 space-y-0.5">
+            <p class="p-6 text-sm text-gray-400 text-center">Chargement…</p>
+        </div>
+    </div>
+
+    <!-- ================= ZONE DE CONVERSATION ================= -->
+    <div id="chat-area" class="flex-1 min-w-0 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden animate-fade-up shadow-sm" style="animation-delay:.08s">
+
+        <div id="chat-empty" class="flex-1 flex flex-col items-center justify-center text-gray-300 dark:text-gray-700 gap-4 select-none">
+            <div class="w-28 h-28 rounded-full bg-gradient-to-br from-brand-100 to-brand-50 dark:from-brand-950 dark:to-transparent flex items-center justify-center">
+                <i data-lucide="message-circle-heart" class="w-14 h-14 text-brand-400"></i>
+            </div>
+            <div class="text-center">
+                <p class="font-bold text-gray-400 dark:text-gray-500">AFYA Messages</p>
+                <p class="text-sm text-gray-400 dark:text-gray-600 mt-1">Sélectionnez une discussion ou créez-en une nouvelle.<br>Messages internes, privés et sécurisés.</p>
+            </div>
+        </div>
+
+        <div id="chat-active" class="hidden flex-1 flex flex-col min-h-0">
+            <div class="px-3 sm:px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2 sm:gap-3 bg-white dark:bg-gray-900 z-10">
+                <button onclick="backToList()" class="lg:hidden w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center shrink-0">
+                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                </button>
+                <div class="relative shrink-0">
+                    <div id="chat-avatar" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-600/30">?</div>
+                    <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-brand-500 border-2 border-white dark:border-gray-900"></span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p id="chat-name" class="font-bold truncate">—</p>
+                    <p class="text-xs text-brand-600 dark:text-brand-400 font-medium">Conversation interne sécurisée</p>
+                </div>
+                <div class="relative hidden sm:block">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input id="chat-search" type="text" placeholder="Rechercher…"
+                           class="w-36 focus:w-52 transition-all pl-9 pr-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs outline-none focus:ring-2 focus:ring-brand-500"
+                           oninput="filterMessages()">
+                </div>
+            </div>
+
+            <div id="messages" class="flex-1 overflow-y-auto msg-scroll px-3 sm:px-4 py-4 bg-gray-50 dark:bg-gray-950/60"></div>
+
+            <div class="p-2.5 sm:p-3 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
+                <div class="relative">
+                    <!-- Panneau émojis -->
+                    <div id="emoji-panel" class="hidden absolute bottom-14 left-0 z-20 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-2 animate-pop-in">
+                        <div id="emoji-grid" class="grid grid-cols-8 gap-0.5 text-xl"></div>
+                    </div>
+                    <!-- Barre de saisie -->
+                    <div class="flex items-end gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-2xl p-1.5">
+                        <input id="msg-file" type="file" class="hidden" onchange="sendWithFile()">
+                        <button onclick="document.getElementById('msg-file').click()" title="Joindre un fichier"
+                                class="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-gray-400 hover:text-brand-600 hover:bg-white dark:hover:bg-gray-700 transition">
+                            <i data-lucide="paperclip" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="toggleEmojiPanel()" title="Émojis"
+                                class="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-gray-400 hover:text-brand-600 hover:bg-white dark:hover:bg-gray-700 transition text-lg">
+                            😊
+                        </button>
+                        <select id="msg-ephemeral" title="Message éphémère" onchange="onEphemeralChange()"
+                                class="w-10 shrink-0 h-10 rounded-xl bg-transparent text-gray-400 text-xs text-center outline-none cursor-pointer hover:text-brand-600">
+                            <option value="" selected title="Permanent">∞</option>
+                            <option value="1" title="1 heure">1h</option>
+                            <option value="24" title="24 heures">24h</option>
+                            <option value="168" title="7 jours">7j</option>
+                        </select>
+                        <textarea id="msg-input" rows="1" placeholder="Écrire un message…"
+                                  class="flex-1 px-2 sm:px-3 py-2.5 bg-transparent text-sm resize-none outline-none max-h-32"></textarea>
+                        <button id="msg-mic" onclick="toggleRecording()" title="Message vocal"
+                                class="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-gray-400 hover:text-brand-600 hover:bg-white dark:hover:bg-gray-700 transition">
+                            <i data-lucide="mic" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="sendMessage()" title="Envoyer"
+                                class="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center shadow-md shadow-brand-600/30 hover:scale-105 active:scale-95 transition">
+                            <i data-lucide="send-horizontal" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="mt-1.5 px-2 text-[10px] text-gray-400 hidden sm:block">
+                    <b>**gras**</b> · <i>*italique*</i> · 😊 émojis · 🎙️ vocal · ∞/1h/24h/7j éphémère · clic droit sur un message : plus d'options
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= PANNEAU COULISSANT ================= -->
+<div id="nc-backdrop" onclick="closeNewChat()" class="hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"></div>
+<div id="nc-panel" class="fixed top-0 left-0 z-50 h-full w-80 max-w-[85vw] bg-white dark:bg-gray-900 shadow-2xl border-r border-gray-200 dark:border-gray-800 -translate-x-full flex flex-col">
+    <div class="p-4 bg-gradient-to-r from-brand-600 to-brand-800 text-white flex items-center justify-between">
+        <h3 class="font-bold flex items-center gap-2"><i data-lucide="square-pen" class="w-5 h-5"></i> Nouvelle discussion</h3>
+        <button onclick="closeNewChat()" class="w-9 h-9 rounded-xl hover:bg-white/20 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div class="p-3">
+        <div class="flex rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden text-sm mb-2">
+            <button id="nc-tab-priv" onclick="ncMode('priv')" class="flex-1 py-2 font-semibold bg-brand-600 text-white transition">Privée</button>
+            <button id="nc-tab-group" onclick="ncMode('group')" class="flex-1 py-2 font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition">Groupe</button>
+        </div>
+        <div id="nc-group-name-wrap" class="hidden mb-2">
+            <input id="nc-group-name" type="text" placeholder="Nom du groupe *"
+                   class="w-full px-3 py-2.5 rounded-xl border-2 border-brand-300 dark:border-brand-800 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div class="relative">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            <input id="nc-search" type="text" placeholder="Rechercher un collaborateur…"
+                   class="w-full pl-9 pr-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+                   oninput="renderUsers()">
+        </div>
+    </div>
+    <div id="nc-users" class="flex-1 overflow-y-auto msg-scroll px-2 pb-2"></div>
+    <div class="p-3 border-t border-gray-100 dark:border-gray-800">
+        <button id="nc-submit" onclick="submitNewChat()"
+                class="w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-bold shadow-lg shadow-brand-600/30 active:scale-[.98] transition">
+            Discuter
+        </button>
+    </div>
+</div>
+
+<!-- ================= MENU CONTEXTUEL ================= -->
+<div id="ctx-menu" class="hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl py-1.5 animate-pop-in overflow-hidden"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const USERS = {{ users_json|safe }};
+let currentConv = null, pollTimer = null, lastMessagesJson = '', ncModeSelected = 'priv', ncSelected = new Set();
+
+/* ================= ÉMOJIS ================= */
+const EMOJIS = [...'😀😁😂🤣😃😄😅😆😉😊😋😎😍😘🥰😜🤪🤔🤗🙂🙃😴🤤😪😷🤒🤕🥵🥶🥳🥺😢😭😤😠😡🤯😳🥴😇🤠🤡💀👻👽🙈🙉🙊💩😺😸💪👍👎👏🙏🤝✌️👌🫶❤️💔💯✨🔥🎉🎊⭐⚡🎂🌹☀️🌙'];
+
+function renderEmojiPanel() {
+    document.getElementById('emoji-grid').innerHTML = EMOJIS.map(e =>
+        `<button class="w-8 h-8 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-950 transition flex items-center justify-center" onclick="insertEmoji('${e}')">${e}</button>`
+    ).join('');
+}
+function toggleEmojiPanel() {
+    const p = document.getElementById('emoji-panel');
+    p.classList.toggle('hidden');
+    if (!p.classList.contains('hidden') && !p.dataset.loaded) {
+        renderEmojiPanel();
+        p.dataset.loaded = '1';
+    }
+}
+function insertEmoji(emoji) {
+    const input = document.getElementById('msg-input');
+    const pos = input.selectionStart || input.value.length;
+    input.value = input.value.slice(0, pos) + emoji + input.value.slice(pos);
+    input.focus();
+    input.selectionStart = input.selectionEnd = pos + emoji.length;
+}
+
+/* ================= ÉPHÉMÈRE : notification de changement ================= */
+function onEphemeralChange() {
+    const v = document.getElementById('msg-ephemeral').value;
+    const labels = {
+        '': '💾 Messages permanents restaurés',
+        '1': '⏳ Messages éphémères activés — les nouveaux messages disparaîtront après 1 heure',
+        '24': '⏳ Messages éphémères activés — les nouveaux messages disparaîtront après 24 heures',
+        '168': '⏳ Messages éphémères activés — les nouveaux messages disparaîtront après 7 jours',
+    };
+    const box = document.getElementById('messages');
+    box.insertAdjacentHTML('beforeend', `
+        <div class="flex justify-center my-2">
+            <span class="px-3 py-1.5 rounded-full bg-amber-100 dark:bg-amber-950 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-[11px] font-medium animate-pop-in text-center max-w-[90%]">
+                ${labels[v]}
+            </span>
+        </div>`);
+    box.scrollTop = box.scrollHeight;
+}
+
+/* ================= MESSAGES VOCAUX ================= */
+let mediaRecorder = null, audioChunks = [], recordStart = null, recordTimer = null;
+
+async function toggleRecording() {
+    const btn = document.getElementById('msg-mic');
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        return;
+    }
+    if (!currentConv) return;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size) audioChunks.push(e.data); };
+        mediaRecorder.onstop = async () => {
+            clearInterval(recordTimer);
+            btn.classList.remove('recording');
+            document.getElementById('record-indicator')?.remove();
+            stream.getTracks().forEach(t => t.stop());
+            const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            const rec = mediaRecorder;
+            mediaRecorder = null;
+            if (blob.size > 500 && currentConv) {
+                const fd = new FormData();
+                fd.append('file', blob, `vocal_${Date.now()}.webm`);
+                await fetch(`{% url 'messaging:api_upload' 0 %}`.replace('0', currentConv), {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                    body: fd,
+                });
+                await loadMessages(true);
+                loadConversations();
+            }
+        };
+        mediaRecorder.start();
+        recordStart = Date.now();
+        btn.classList.add('recording');
+        btn.parentElement.insertAdjacentHTML('beforeend',
+            `<span id="record-indicator" class="absolute -top-9 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-red-500 text-white text-xs font-bold animate-pulse whitespace-nowrap">● 0:00 — cliquez pour envoyer</span>`);
+        recordTimer = setInterval(() => {
+            const s = Math.floor((Date.now() - recordStart) / 1000);
+            const el = document.getElementById('record-indicator');
+            if (el) el.textContent = `● ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} — cliquez pour envoyer`;
+        }, 500);
+    } catch {
+        alert('⚠️ Microphone inaccessible. Vérifiez les autorisations du navigateur.');
+    }
+}
+
+/* ================= MISE EN FORME ================= */
+function fmtContent(text) {
+    let h = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+         .replace(/\*(.+?)\*/g, '<i>$1</i>')
+         .replace(/`(.+?)`/g, '<code class="px-1 rounded bg-black/10 text-xs">$1</code>');
+    const lines = h.split('\n');
+    if (lines.length > 1 && lines.every(l => !l.trim() || l.trim().startsWith('- '))) {
+        return '<ul class="list-disc pl-4 space-y-0.5">' +
+            lines.filter(l => l.trim()).map(l => `<li>${l.trim().slice(2)}</li>`).join('') + '</ul>';
+    }
+    return h.replace(/\n/g, '<br>');
+}
+
+/* ================= PIÈCES JOINTES (icônes par type) ================= */
+function attachmentHtml(a) {
+    if (a.type === 'AUDIO') {
+        const uid = 'au' + Math.random().toString(36).slice(2, 9);
+        return `<div class="mt-1.5 flex items-center gap-2.5 min-w-[230px]">
+            <button onclick="toggleAudio('${uid}')" id="btn-${uid}"
+                    class="w-9 h-9 shrink-0 rounded-full bg-white/25 hover:bg-white/40 active:scale-90 flex items-center justify-center text-white transition">
+                <i data-lucide="play" class="w-4 h-4" id="ic-${uid}"></i>
+            </button>
+            <div class="flex-1 min-w-0">
+                <div class="h-1.5 rounded-full bg-black/25 overflow-hidden cursor-pointer" onclick="seekAudio(event, '${uid}', this)">
+                    <div class="h-full rounded-full bg-white transition-all" style="width:0%" id="bar-${uid}"></div>
+                </div>
+                <div class="flex justify-between text-[10px] mt-1 text-white/80 font-medium">
+                    <span id="cur-${uid}">0:00</span><span id="dur-${uid}">0:00</span>
+                </div>
+            </div>
+            <i data-lucide="audio-lines" class="w-4 h-4 text-white/60 shrink-0"></i>
+            <audio id="${uid}" src="${a.url}" preload="metadata"
+                   onloadedmetadata="audioMeta('${uid}')" ontimeupdate="audioTick('${uid}')"
+                   onplay="updateAudioBtn('${uid}')" onpause="updateAudioBtn('${uid}')"
+                   onended="audioEnd('${uid}')"></audio>
+        </div>`;
+    }
+    if (a.type === 'VIDEO') {
+        return `<video controls src="${a.url}" class="mt-1.5 max-w-[260px] rounded-xl"></video>`;
+    }
+    if (a.is_image) {
+        return `<a href="${a.url}" target="_blank"><img src="${a.url}" alt="${a.name}" class="mt-1.5 max-w-[260px] rounded-xl border border-white/20 shadow-sm"></a>`;
+    }
+    const ext = (a.name.split('.').pop() || '').toLowerCase();
+    const map = {
+        pdf: ['file-text', 'text-red-500'],
+        doc: ['file-text', 'text-blue-500'], docx: ['file-text', 'text-blue-500'],
+        xls: ['file-spreadsheet', 'text-emerald-500'], xlsx: ['file-spreadsheet', 'text-emerald-500'],
+        csv: ['file-spreadsheet', 'text-emerald-500'],
+        ppt: ['presentation', 'text-orange-500'], pptx: ['presentation', 'text-orange-500'],
+        zip: ['file-archive', 'text-yellow-500'], rar: ['file-archive', 'text-yellow-500'], '7z': ['file-archive', 'text-yellow-500'],
+        txt: ['file', 'text-gray-500'], mp3: ['file-audio', 'text-violet-500'], wav: ['file-audio', 'text-violet-500'],
+    };
+    const [icon, color] = map[ext] || ['file', 'text-gray-500'];
+    return `<a href="${a.url}" target="_blank" class="mt-1.5 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-black/10 hover:bg-black/20 text-xs transition">
+                <i data-lucide="${icon}" class="w-5 h-5 shrink-0 ${color}"></i>
+                <span class="truncate font-medium">${a.name}</span>
+            </a>`;
+}
+
+/* ================= IMPORTANT (étoiles) ================= */
+const IMPORTANT_KEY = 'afya-important-messages';
+const getImportant = () => new Set(JSON.parse(localStorage.getItem(IMPORTANT_KEY) || '[]'));
+function isImportant(id) { return getImportant().has(id); }
+
+function toggleImportant(id) {
+    const s = getImportant();
+    s.has(id) ? s.delete(id) : s.add(id);
+    localStorage.setItem(IMPORTANT_KEY, JSON.stringify([...s]));
+    loadMessages(true);
+}
+
+async function deleteMessage(id) {
+    await fetch(`/messagerie/api/message/${id}/supprimer/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+    });
+    await loadMessages(true);
+    loadConversations();
+}
+
+/* ================= MENU CONTEXTUEL ================= */
+function showCtxMenu(e, row) {
+    const id = parseInt(row.dataset.id);
+    const content = row.dataset.content || '';
+    const mine = row.dataset.mine === 'true';
+    const menu = document.getElementById('ctx-menu');
+    const safe = content.replace(/\\/g, '\\\\').replace(/`/g, '\\`');
+    const items = [
+        { icon: 'clipboard-copy', label: 'Copier', fn: `navigator.clipboard.writeText(\`${safe}\`); hideCtxMenu();` },
+        { icon: 'reply', label: 'Répondre', fn: `replyTo(\`${safe}\`); hideCtxMenu();` },
+        { icon: isImportant(id) ? 'star-off' : 'star', label: isImportant(id) ? 'Retirer important' : 'Marquer important',
+          fn: `toggleImportant(${id}); hideCtxMenu();` },
+        { icon: 'forward', label: 'Transférer', fn: `document.getElementById('msg-input').value = \`${safe}\`; document.getElementById('msg-input').focus(); hideCtxMenu();` },
+    ];
+    if (mine) {
+        items.push({ icon: 'trash-2', label: 'Supprimer pour tous', danger: true,
+                     fn: `if(confirm('Supprimer ce message pour tous ?')) { deleteMessage(${id}); } hideCtxMenu();` });
+    }
+    menu.innerHTML = items.map(i => `
+        <button class="ctx-item ${i.danger ? 'text-red-500' : 'text-gray-600 dark:text-gray-300'}" onclick="${i.fn}">
+            <i data-lucide="${i.icon}" class="w-4 h-4"></i> ${i.label}
+        </button>`).join('');
+    menu.classList.remove('hidden');
+    menu.style.left = Math.min(e.clientX, window.innerWidth - 210) + 'px';
+    menu.style.top = Math.min(e.clientY, window.innerHeight - items.length * 40 - 20) + 'px';
+    lucide.createIcons();
+}
+
+function hideCtxMenu() { document.getElementById('ctx-menu').classList.add('hidden'); }
+
+function replyTo(content) {
+    const excerpt = content.split('\n')[0].slice(0, 60);
+    const input = document.getElementById('msg-input');
+    input.value = `« ${excerpt}${content.length > 60 ? '…' : ''} » `;
+    input.focus();
+}
+
+document.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.msg-row');
+    if (row && !e.target.closest('a, img, audio, video')) { e.preventDefault(); showCtxMenu(e, row); }
+    else hideCtxMenu();
+});
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#ctx-menu, #emoji-panel')) hideCtxMenu();
+    if (!e.target.closest('#emoji-panel') && !e.target.closest('[onclick*="toggleEmojiPanel"]')) {
+        document.getElementById('emoji-panel').classList.add('hidden');
+    }
+});
+document.addEventListener('scroll', hideCtxMenu, true);
+
+/* ================= CONVERSATIONS ================= */
+let allConversations = [];
+
+async function loadConversations() {
+    const res = await fetch("{% url 'messaging:api_conversations' %}");
+    const data = await res.json();
+    allConversations = data.conversations;
+    renderConversations();
+}
+
+function renderConversations() {
+    const q = (document.getElementById('conv-filter').value || '').toLowerCase();
+    document.getElementById('conv-list').innerHTML = allConversations
+        .filter(c => c.name.toLowerCase().includes(q))
+        .map(c => `
+            <button onclick="openConversation(${c.id}, '${c.name.replace(/'/g, "\\'")}')"
+                    class="conv-item w-full text-left px-3 py-3 rounded-xl transition flex items-center gap-3 group
+                           ${currentConv === c.id ? 'bg-brand-100 dark:bg-brand-950/60' : 'hover:bg-gray-100 dark:hover:bg-gray-800/60'}">
+                <div class="relative shrink-0">
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white font-bold shadow-md shadow-brand-600/20 group-hover:scale-105 transition">
+                        ${c.is_group ? '<i data-lucide="users" class="w-5 h-5"></i>' : c.name.charAt(0).toUpperCase()}
+                    </div>
+                    ${c.last_time ? '<span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-brand-500 border-2 border-white dark:border-gray-900"></span>' : ''}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex justify-between items-baseline gap-2">
+                        <p class="font-bold truncate text-sm">${c.name}</p>
+                        <span class="text-[10px] text-gray-400 shrink-0">${c.last_time}</span>
+                    </div>
+                    <p class="text-xs text-gray-400 truncate mt-0.5">${c.last_message || '<span class="italic">Nouvelle discussion</span>'}</p>
+                </div>
+            </button>`).join('')
+        || `<div class="p-8 text-center">
+                <i data-lucide="message-circle-off" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-700"></i>
+                <p class="text-sm text-gray-400 mt-2">Aucune discussion.<br>Cliquez sur ✎ pour commencer.</p>
+            </div>`;
+    lucide.createIcons();
+}
+
+function filterConversations() { renderConversations(); }
+
+async function openConversation(id, name) {
+    currentConv = id;
+    if (window.innerWidth < 1024) {
+        document.getElementById('conv-column').classList.add('hidden');
+    }
+    document.getElementById('chat-empty').classList.add('hidden');
+    document.getElementById('chat-active').classList.remove('hidden');
+    document.getElementById('chat-active').classList.add('flex');
+    document.getElementById('chat-name').textContent = name;
+    document.getElementById('chat-avatar').textContent = name.charAt(0).toUpperCase();
+    renderConversations();
+    await loadMessages(true);
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => loadMessages(false), 5000);
+}
+
+function backToList() {
+    clearInterval(pollTimer);
+    currentConv = null;
+    lastMessagesJson = '';
+    document.getElementById('conv-column').classList.remove('hidden');
+    document.getElementById('chat-active').classList.add('hidden');
+    document.getElementById('chat-active').classList.remove('flex');
+    document.getElementById('chat-empty').classList.remove('hidden');
+    renderConversations();
+}
+
+window.addEventListener('resize', () => {
+    if (window.innerWidth >= 1024) {
+        document.getElementById('conv-column').classList.remove('hidden');
+    }
+});
+
+/* ================= MESSAGES ================= */
+async function loadMessages(forceScroll) {
+    if (!currentConv) return;
+    const res = await fetch(`{% url 'messaging:api_messages' 0 %}`.replace('0', currentConv));
+    const data = await res.json();
+    const json = JSON.stringify(data.messages);
+    if (json === lastMessagesJson && !forceScroll) return;
+    lastMessagesJson = json;
+    renderMessages(data.messages);
+}
+
+function renderMessages(messages) {
+    const box = document.getElementById('messages');
+    const search = (document.getElementById('chat-search').value || '').toLowerCase();
+    let lastDate = '';
+    let html = '';
+
+    messages.forEach(m => {
+        const match = !search || (m.content + ' ' + m.sender).toLowerCase().includes(search);
+        if (m.date !== lastDate) {
+            lastDate = m.date;
+            html += `<div class="flex justify-center my-3">
+                        <span class="px-3 py-1 rounded-full bg-gray-200 dark:bg-gray-800 text-[11px] text-gray-500 dark:text-gray-400 font-medium">${m.date}</span>
+                     </div>`;
+        }
+        const atts = m.attachments.map(attachmentHtml).join('');
+        html += `
+        <div class="msg-row flex ${m.mine ? 'justify-end' : 'justify-start'} mb-1.5 ${match ? '' : 'hidden'}"
+             data-id="${m.id}" data-text="${(m.content + ' ' + m.sender).toLowerCase()}"
+             data-content="${m.content.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" data-mine="${m.mine}">
+            <div class="bubble ${m.mine ? 'bubble-mine' : 'bubble-other'} px-3.5 py-2 text-sm animate-fade-up
+                        ${m.mine ? 'bg-gradient-to-br from-brand-500 to-brand-700 text-white rounded-2xl'
+                                 : 'bg-gray-100 dark:bg-gray-800 rounded-2xl border-b border-gray-200 dark:border-gray-700'}">
+                ${isImportant(m.id) ? '<span class="msg-star text-amber-400"><i data-lucide="star" class="w-4 h-4 fill-amber-400"></i></span>' : ''}
+                ${m.mine ? '' : `<p class="text-[11px] font-bold text-brand-600 dark:text-brand-400 mb-0.5">${m.sender}</p>`}
+                ${m.content ? `<p class="leading-relaxed">${fmtContent(m.content)}</p>` : ''}
+                ${atts}
+                <p class="text-[10px] mt-1 flex items-center justify-end gap-1 ${m.mine ? 'text-brand-100' : 'text-gray-400'}">
+                    ${m.ephemeral_hours ? '<span title="Éphémère">⏳</span>' : ''}
+                    ${m.time}
+                    ${m.mine ? '<i data-lucide="check-check" class="w-3.5 h-3.5"></i>' : ''}
+                </p>
+            </div>
+        </div>`;
+    });
+    box.innerHTML = html || `<div class="h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-700 gap-2">
+                                 <i data-lucide="message-circle" class="w-12 h-12"></i>
+                                 <p class="text-sm">Aucun message — dites bonjour 👋</p>
+                             </div>`;
+    lucide.createIcons();
+    box.scrollTop = box.scrollHeight;
+}
+
+function filterMessages() {
+    const q = document.getElementById('chat-search').value.toLowerCase();
+    document.querySelectorAll('.msg-row').forEach(row => {
+        row.classList.toggle('hidden', q && !row.dataset.text.includes(q));
+    });
+}
+
+/* ================= ENVOI ================= */
+async function sendMessage() {
+    const input = document.getElementById('msg-input');
+    const content = input.value.trim();
+    if (!content || !currentConv) return;
+    input.value = '';
+    input.style.height = 'auto';
+    await postJSON(`{% url 'messaging:api_send' 0 %}`.replace('0', currentConv), {
+        content,
+        ephemeral_hours: document.getElementById('msg-ephemeral').value || null,
+    });
+}
+
+async function sendWithFile() {
+    const f = document.getElementById('msg-file').files[0];
+    const content = document.getElementById('msg-input').value.trim();
+    if (!f || !currentConv) return;
+    document.getElementById('msg-file').value = '';
+    document.getElementById('msg-input').value = '';
+    const fd = new FormData();
+    fd.append('file', f);
+    if (content) fd.append('content', content);
+    await fetch(`{% url 'messaging:api_upload' 0 %}`.replace('0', currentConv), {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        body: fd,
+    });
+    await loadMessages(true);
+    loadConversations();
+}
+
+async function postJSON(url, payload) {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.success) {
+        await loadMessages(true);
+        loadConversations();
+    }
+    return data;
+}
+
+const msgInput = document.getElementById('msg-input');
+msgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+msgInput.addEventListener('input', () => {
+    msgInput.style.height = 'auto';
+    msgInput.style.height = Math.min(msgInput.scrollHeight, 128) + 'px';
+});
+
+/* ================= PANNEAU COULISSANT ================= */
+function openNewChat() {
+    ncModeSelected = 'priv';
+    ncSelected.clear();
+    document.getElementById('nc-group-name').value = '';
+    document.getElementById('nc-backdrop').classList.remove('hidden');
+    document.getElementById('nc-panel').classList.remove('-translate-x-full');
+    ncMode('priv');
+    renderUsers();
+    lucide.createIcons();
+}
+function closeNewChat() {
+    document.getElementById('nc-backdrop').classList.add('hidden');
+    document.getElementById('nc-panel').classList.add('-translate-x-full');
+}
+
+function ncMode(mode) {
+    ncModeSelected = mode;
+    const on = ['bg-brand-600', 'text-white'], off = ['text-gray-500', 'dark:text-gray-400', 'hover:bg-gray-100', 'dark:hover:bg-gray-800'];
+    const p = document.getElementById('nc-tab-priv'), g = document.getElementById('nc-tab-group');
+    p.classList.remove(...on, ...off); g.classList.remove(...on, ...off);
+    (mode === 'priv' ? p : g).classList.add(...on);
+    (mode === 'priv' ? g : p).classList.add(...off);
+    document.getElementById('nc-group-name-wrap').classList.toggle('hidden', mode !== 'group');
+    document.getElementById('nc-submit').textContent = mode === 'group' ? 'Créer le groupe' : 'Discuter';
+}
+
+function renderUsers() {
+    const q = (document.getElementById('nc-search').value || '').toLowerCase();
+    document.getElementById('nc-users').innerHTML = USERS
+        .filter(u => u.name.toLowerCase().includes(q))
+        .map(u => `
+            <button onclick="toggleSelect(${u.id})"
+                    class="w-full text-left px-3 py-2.5 rounded-xl transition flex items-center gap-3
+                           ${ncSelected.has(u.id) ? 'bg-brand-100 dark:bg-brand-950/60' : 'hover:bg-gray-100 dark:hover:bg-gray-800/60'}">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white font-bold text-sm shadow-md shadow-brand-600/20">${u.initial}</div>
+                <span class="font-semibold text-sm flex-1 truncate">${u.name}</span>
+                <span class="${ncSelected.has(u.id) ? 'text-brand-600 dark:text-brand-400' : 'text-transparent'}">
+                    <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                </span>
+            </button>`).join('')
+        || '<p class="p-6 text-sm text-gray-400 text-center">Aucun collaborateur trouvé.</p>';
+    lucide.createIcons();
+}
+
+function toggleSelect(id) {
+    ncSelected.has(id) ? ncSelected.delete(id) : ncSelected.add(id);
+    renderUsers();
+}
+
+async function submitNewChat() {
+    if (ncModeSelected === 'priv') {
+        if (ncSelected.size !== 1) return;
+        const u = USERS.find(x => x.id === [...ncSelected][0]);
+        const res = await fetch("{% url 'messaging:api_start' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ user_id: u.id }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeNewChat();
+            await loadConversations();
+            openConversation(data.conversation_id, u.name);
+        }
+    } else {
+        const name = document.getElementById('nc-group-name').value.trim();
+        if (!name || ncSelected.size === 0) return;
+        const res = await fetch("{% url 'messaging:api_create_group' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ name, member_ids: [...ncSelected] }),
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeNewChat();
+            await loadConversations();
+            openConversation(data.conversation_id, name);
+        }
+    }
+}
+
+function getCookie(name) {
+    let v = null;
+    if (document.cookie) document.cookie.split(';').forEach(x => {
+        const [k, val] = x.trim().split('=');
+        if (k === name) v = decodeURIComponent(val);
+    });
+    return v;
+}
+
+loadConversations();
+
+/* ================= LECTEUR AUDIO PERSONNALISÉ ================= */
+function fmtTime(s) {
+    s = Math.floor(s || 0);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+function toggleAudio(id) {
+    const a = document.getElementById(id);
+    if (!a) return;
+    // Un seul lecteur à la fois
+    document.querySelectorAll('#messages audio').forEach(x => { if (x.id !== id && !x.paused) x.pause(); });
+    a.paused ? a.play() : a.pause();
+}
+
+function updateAudioBtn(id) {
+    const a = document.getElementById(id);
+    const btn = document.getElementById('btn-' + id);
+    if (!a || !btn) return;
+    const playing = !a.paused && !a.ended;
+    btn.innerHTML = `<i data-lucide="${playing ? 'pause' : 'play'}" class="w-4 h-4"></i>`;
+    btn.classList.toggle('bg-white/60', playing);
+    lucide.createIcons();
+}
+
+function audioMeta(id) {
+    const a = document.getElementById(id);
+    const dur = document.getElementById('dur-' + id);
+    if (a && dur && isFinite(a.duration)) dur.textContent = fmtTime(a.duration);
+}
+
+function audioTick(id) {
+    const a = document.getElementById(id);
+    const bar = document.getElementById('bar-' + id);
+    const cur = document.getElementById('cur-' + id);
+    if (!a || !bar) return;
+    if (isFinite(a.duration) && a.duration > 0) {
+        bar.style.width = (a.currentTime / a.duration * 100) + '%';
+    }
+    if (cur) cur.textContent = fmtTime(a.currentTime);
+}
+
+function audioEnd(id) {
+    const a = document.getElementById(id);
+    const bar = document.getElementById('bar-' + id);
+    if (a) a.currentTime = 0;
+    if (bar) bar.style.width = '0%';
+    updateAudioBtn(id);
+}
+
+function seekAudio(e, id, track) {
+    const a = document.getElementById(id);
+    if (!a || !isFinite(a.duration)) return;
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+    a.currentTime = ratio * a.duration;
+    audioTick(id);
+}
+</script>
+{% endblock %}
