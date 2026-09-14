@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'apps.messaging',
     'apps.notifications',
     'apps.settings_app',
+    'apps.medicine',
 ]
 
 MIDDLEWARE = [

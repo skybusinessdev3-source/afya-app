@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+    <!-- ===== Nouvelle prestation ===== -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+            <h3 class="font-bold mb-3 flex items-center gap-2">
+                <i data-lucide="stethoscope" class="w-5 h-5 text-brand-600"></i> Nouvelle prestation
+            </h3>
+
+            <div class="space-y-2">
+                <!-- Patient -->
+                <div>
+                    <input id="m-patient-search" type="text" placeholder="Rechercher le patient…"
+                           class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" autocomplete="off">
+                    <div id="m-patient-results" class="mt-2 space-y-1"></div>
+                    <div id="m-patient-selected" class="hidden mt-2 flex items-center justify-between px-3 py-2.5 rounded-xl bg-brand-50 dark:bg-brand-950 border border-brand-300 dark:border-brand-800 text-sm">
+                        <span class="font-semibold text-brand-700 dark:text-brand-300" id="m-patient-name"></span>
+                        <button onclick="clearMedPatient()" class="text-gray-400 hover:text-red-500 text-xs font-medium">Changer</button>
+                    </div>
+                </div>
+
+                <!-- Catégorie (limitée à la page) -->
+                <select id="m-category" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                        onchange="onCategoryChange(); updatePreview();">
+                    {% for c in categories %}
+                        {% if c.value in allowed %}<option value="{{ c.value }}">{{ c.label }}</option>{% endif %}
+                    {% endfor %}
+                </select>
+
+                <!-- Précision "autre prestation" -->
+                <input id="m-prestation-other" type="text" placeholder="Précisez l'autre prestation…"
+                       class="hidden w-full px-3 py-2.5 rounded-xl border border-brand-400 dark:border-brand-700 bg-white dark:bg-gray-800 text-sm">
+
+                <input id="m-prescriber" type="text" placeholder="Prescripteur (Dr. externe accepté)…"
+                       class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+
+                <div class="flex gap-2">
+                    <input id="m-amount" type="number" min="0" step="0.01" placeholder="Montant facturé *"
+                           class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" oninput="updatePreview()">
+                    <select id="m-currency" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-brand-400 dark:border-brand-700 bg-white dark:bg-gray-800 text-sm font-semibold text-brand-700 dark:text-brand-300 outline-none" onchange="updatePreview()">
+                        <option value="USD">$ USD</option>
+                        <option value="FC">FC</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <input id="m-paid" type="number" min="0" step="0.01" placeholder="Montant payé (0 si rien)"
+                           class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <select id="m-paid-currency" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold outline-none">
+                        <option value="USD">$ USD</option>
+                        <option value="FC">FC</option>
+                    </select>
+                </div>
+                <input id="m-obs" type="text" placeholder="Observation (optionnel)…"
+                       class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+
+                <div id="m-preview" class="hidden p-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-xs space-y-1">
+                    <p>Répartition qui sera appliquée (figée) :</p>
+                    <p>Prescripteur (<span id="mp-pct"></span> %) : <b id="mp-prescriber"></b></p>
+                    <p>Centre (<span id="mp-center-pct"></span> %) : <b id="mp-center"></b></p>
+                </div>
+
+                <div id="m-feedback" class="hidden px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+                <button onclick="submitMedicine(this)"
+                        class="w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+                    Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Tableau mensuel ===== -->
+    <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+                <h3 class="font-bold flex items-center gap-2">
+                    <i data-lucide="table" class="w-5 h-5 text-brand-600"></i> Répartition de {{ month_label }}
+                </h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                            <th class="px-4 py-3 font-medium">Date</th>
+                            <th class="px-4 py-3 font-medium">Patient</th>
+                            <th class="px-4 py-3 font-medium">Catégorie</th>
+                            <th class="px-4 py-3 font-medium">Prescripteur</th>
+                            <th class="px-4 py-3 font-medium text-right">Facturé</th>
+                            <th class="px-4 py-3 font-medium text-right">Prescripteur</th>
+                            <th class="px-4 py-3 font-medium text-right">Centre</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        {% for r in records %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                            <td class="px-4 py-3 whitespace-nowrap">{{ r.date|date:"d/m/Y" }}</td>
+                            <td class="px-4 py-3 font-medium">{{ r.patient }}</td>
+                            <td class="px-4 py-3 text-gray-400">{{ r.get_category_display }}{% if r.prestation_other %} — {{ r.prestation_other }}{% endif %}</td>
+                            <td class="px-4 py-3 text-gray-400">{{ r.prescriber_name|default:"—" }}</td>
+                            <td class="px-4 py-3 text-right font-semibold">{{ r.amount_original }} {{ r.currency_original }}</td>
+                            <td class="px-4 py-3 text-right text-gray-400">{{ r.prescriber_amount_usd }} $</td>
+                            <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ r.center_amount_usd }} $</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Aucune prestation ce mois-ci.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if records %}
+                    <tfoot>
+                        <tr class="border-t-2 border-brand-200 dark:border-brand-900 font-bold bg-brand-50 dark:bg-brand-950/40">
+                            <td colspan="4" class="px-4 py-3">Totaux du mois</td>
+                            <td class="px-4 py-3 text-right">{{ totals.billed }} $</td>
+                            <td class="px-4 py-3 text-right">{{ totals.prescriber }} $</td>
+                            <td class="px-4 py-3 text-right">{{ totals.center }} $</td>
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL NOUVEAU PATIENT ================= -->
+<div id="med-patient-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeMedPatientModal()"></div>
+    <div class="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-5 h-5 text-brand-600"></i> Nouveau patient
+            </h3>
+            <button onclick="closeMedPatientModal()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <input id="mpn-last-name" type="text" placeholder="Nom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="mpn-middle-name" type="text" placeholder="Post-nom" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="mpn-first-name" type="text" placeholder="Prénom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="mpn-sex" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">Sexe *</option>
+                <option value="M">Masculin</option>
+                <option value="F">Féminin</option>
+            </select>
+            <input id="mpn-phone" type="tel" placeholder="Téléphone" class="col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+        </div>
+        <div id="mpn-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+        <button onclick="submitMedNewPatient(this)"
+                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+            Enregistrer le patient
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PCTS = {{ pcts|safe }};
+const RATE_FC = 2250; // indicatif — le serveur fige le vrai taux
+let medPatient = null, mTimer = null;
+
+/* ================= PATIENT ================= */
+const mpInput = document.getElementById('m-patient-search');
+mpInput.addEventListener('input', () => {
+    clearTimeout(mTimer);
+    const q = mpInput.value.trim();
+    if (q.length < 2) { document.getElementById('m-patient-results').innerHTML = ''; return; }
+    mTimer = setTimeout(async () => {
+        const res = await fetch(`/centre/api/recherche-patients/?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        document.getElementById('m-patient-results').innerHTML = data.results.length
+            ? data.results.map(p => `
+                <button onclick='selectMedPatient(${JSON.stringify(p)})'
+                        class="w-full text-left px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-brand-500 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition text-sm">
+                    <span class="font-semibold">${p.name}</span>
+                    <span class="text-xs text-gray-400"> — ${p.phone}</span>
+                </button>`).join('')
+            : `<div class="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs">
+                   Patient introuvable —
+                   <button onclick="openMedPatientModal()" class="font-semibold underline">créer le patient</button>
+               </div>`;
+    }, 250);
+});
+
+function selectMedPatient(p) {
+    medPatient = p;
+    document.getElementById('m-patient-results').innerHTML = '';
+    mpInput.classList.add('hidden');
+    document.getElementById('m-patient-name').textContent = p.name;
+    document.getElementById('m-patient-selected').classList.remove('hidden');
+}
+function clearMedPatient() {
+    medPatient = null;
+    mpInput.classList.remove('hidden');
+    mpInput.value = '';
+    document.getElementById('m-patient-selected').classList.add('hidden');
+}
+
+/* ================= CATÉGORIE / APERÇU ================= */
+function onCategoryChange() {
+    const cat = document.getElementById('m-category').value;
+    document.getElementById('m-prestation-other').classList.toggle('hidden', !cat.endsWith('_OTHER'));
+}
+
+function updatePreview() {
+    const cat = document.getElementById('m-category').value;
+    const pct = PCTS[cat] ?? 0;
+    const amount = parseFloat(document.getElementById('m-amount').value || '0');
+    const box = document.getElementById('m-preview');
+    if (amount <= 0) { box.classList.add('hidden'); return; }
+    const cur = document.getElementById('m-currency').value;
+    const usd = cur === 'FC' ? amount / RATE_FC : amount;
+    document.getElementById('mp-pct').textContent = pct;
+    document.getElementById('mp-center-pct').textContent = 100 - pct;
+    document.getElementById('mp-prescriber').textContent = (usd * pct / 100).toFixed(2) + ' $';
+    document.getElementById('mp-center').textContent = (usd * (100 - pct) / 100).toFixed(2) + ' $';
+    box.classList.remove('hidden');
+}
+
+/* ================= ENVOI ================= */
+async function submitMedicine(btn) {
+    const feedback = document.getElementById('m-feedback');
+    btn.disabled = true;
+
+    if (!medPatient) {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ Sélectionnez d\'abord un patient.';
+        btn.disabled = false;
+        return;
+    }
+
+    const payload = {
+        patient_id: medPatient.id,
+        category: document.getElementById('m-category').value,
+        prestation_other: document.getElementById('m-prestation-other').value,
+        prescriber_name: document.getElementById('m-prescriber').value,
+        amount: document.getElementById('m-amount').value,
+        currency: document.getElementById('m-currency').value,
+        amount_paid: document.getElementById('m-paid').value || '0',
+        paid_currency: document.getElementById('m-paid-currency').value,
+        observation: document.getElementById('m-obs').value,
+    };
+
+    const res = await fetch("{% url 'medicine:record_create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    feedback.classList.remove('hidden',
+        'bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+    if (data.success) {
+        feedback.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+        feedback.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 1200);
+    } else {
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+/* ================= MODAL PATIENT ================= */
+function openMedPatientModal() {
+    document.getElementById('med-patient-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closeMedPatientModal() {
+    document.getElementById('med-patient-modal').classList.add('hidden');
+}
+
+async function submitMedNewPatient(btn) {
+    const feedback = document.getElementById('mpn-feedback');
+    btn.disabled = true;
+    const payload = {
+        last_name: document.getElementById('mpn-last-name').value,
+        middle_name: document.getElementById('mpn-middle-name').value,
+        first_name: document.getElementById('mpn-first-name').value,
+        sex: document.getElementById('mpn-sex').value,
+        phone: document.getElementById('mpn-phone').value,
+        amount_due: '0',
+        currency: 'USD',
+    };
+    const res = await fetch("{% url 'patients:create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeMedPatientModal();
+        selectMedPatient(data.patient);
+    } else {
+        feedback.classList.remove('hidden');
+        feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        feedback.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+function getCookie(name) {
+    let v = null;
+    if (document.cookie) document.cookie.split(';').forEach(x => {
+        const [k, val] = x.trim().split('=');
+        if (k === name) v = decodeURIComponent(val);
+    });
+    return v;
+}
+</script>
+{% endblock %}

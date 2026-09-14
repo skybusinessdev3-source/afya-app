@@ -183,6 +183,12 @@
             <a href="{% url 'laboratory:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'laboratory' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="flask-conical" class="w-5 h-5"></i> Laboratoire
             </a>
+            <a href="{% url 'medicine:general' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'medicine' and un == 'general' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+                <i data-lucide="clipboard-plus" class="w-5 h-5"></i> Médecine générale
+            </a>
+            <a href="{% url 'medicine:manual' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'medicine' and un == 'manual' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+                <i data-lucide="hand" class="w-5 h-5"></i> Médecine manuelle
+            </a>
             <a href="{% url 'home_care:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'home_care' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="house-plus" class="w-5 h-5"></i> Soins à domicile
             </a>
@@ -349,6 +355,12 @@
         </a>
         <a href="{% url 'messaging:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
             <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
+        </a>
+        <a href="{% url 'medicine:general' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'medicine' and un == 'general' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+            <i data-lucide="clipboard-plus" class="w-5 h-5"></i> Médecine générale
+        </a>
+        <a href="{% url 'medicine:manual' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'medicine' and un == 'manual' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+            <i data-lucide="hand" class="w-5 h-5"></i> Médecine manuelle
         </a>
         <a href="{% url 'admin:index' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
             <i data-lucide="settings" class="w-5 h-5"></i> Administration

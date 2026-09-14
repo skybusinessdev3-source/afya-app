@@ -172,3 +172,83 @@ def product_create(request):
                              'message': f"Produit « {product.name} » créé (stock : {product.stock_available})."})
     except (InvalidOperation, ValueError):
         return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)
+    
+@login_required
+def products_page(request):
+    produits = PharmacyProduct.objects.all().order_by('name')
+    data = []
+    for p in produits:
+        stock = p.stock_available
+        if stock == 0:
+            statut, couleur = 'RUPTURE', 'red'
+        elif stock <= 5:
+            statut, couleur = 'BAS', 'amber'
+        else:
+            statut, couleur = 'NORMAL', 'green'
+        data.append({'p': p, 'stock': stock, 'statut': statut, 'couleur': couleur})
+    return render(request, 'pharmacy/products.html', {
+        'page_title': 'Stock pharmacie',
+        'produits': data,
+    })
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def api_product_update(request, pk):
+    """Modification d'un produit (prix, nom, expiration, observation)."""
+    try:
+        p = PharmacyProduct.objects.get(pk=pk)
+        data = json.loads(request.body)
+        if data.get('name', '').strip():
+            p.name = data['name'].strip()
+        if 'price_usd' in data:
+            p.price_usd = Decimal(str(data['price_usd']))
+        if 'price_fc' in data:
+            p.price_fc = Decimal(str(data['price_fc']))
+        if 'expiry_date' in data:
+            p.expiry_date = data['expiry_date'] or None
+        p.observation = data.get('observation', p.observation)
+        p.save()
+        log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+                  module='pharmacy', obj=p, ip_address=get_client_ip(request))
+        return JsonResponse({'success': True, 'message': f"« {p.name} » mis à jour."})
+    except (PharmacyProduct.DoesNotExist, InvalidOperation, ValueError):
+        return JsonResponse({'success': False, 'message': 'Données invalides.'}, status=400)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def api_stock_add(request, pk):
+    """Réapprovisionnement : nouvelle ENTRÉE de stock tracée (§11)."""
+    try:
+        p = PharmacyProduct.objects.get(pk=pk, is_active=True)
+        data = json.loads(request.body)
+        qty = int(data.get('quantity', 0))
+        if qty <= 0:
+            return JsonResponse({'success': False, 'message': 'Quantité invalide.'}, status=400)
+        movement = StockMovement.objects.create(
+            product=p,
+            movement_type=StockMovement.Type.IN,
+            quantity=qty,
+            reason=data.get('reason', 'Réapprovisionnement'),
+            created_by=request.user,
+        )
+        log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                  module='pharmacy', obj=movement, ip_address=get_client_ip(request))
+        return JsonResponse({'success': True,
+                             'message': f"+{qty} « {p.name} » — stock actuel : {p.stock_available}."})
+    except (PharmacyProduct.DoesNotExist, ValueError):
+        return JsonResponse({'success': False, 'message': 'Données invalides.'}, status=400)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def api_product_toggle(request, pk):
+    p = PharmacyProduct.objects.get(pk=pk)
+    p.is_active = not p.is_active
+    p.save(update_fields=['is_active'])
+    return JsonResponse({'success': True,
+                         'message': f"« {p.name} » : {'activé' if p.is_active else 'désactivé'}."})

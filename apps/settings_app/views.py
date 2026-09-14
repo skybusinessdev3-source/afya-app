@@ -13,7 +13,7 @@ from apps.audit.utils import log_event
 from apps.finance.models import get_current_rate
 
 from .models import (CenterConfig, Company, Staff, ExchangeRate, LabExam,
-                     LabSplitConfig, HomeCareSplitConfig)
+                     LabSplitConfig, HomeCareSplitConfig, MedicineSplitConfig)
 
 
 def get_client_ip(request):
@@ -32,6 +32,7 @@ def settings_page(request):
             ('taux', 'Taux'),
             ('entreprises', 'Entreprises'),
             ('repartitions', 'Répartitions'),
+            ('medecine', 'Médecine'),
             ('examens', 'Examens'),
             ('services', 'Services'),
         ],
@@ -41,6 +42,8 @@ def settings_page(request):
         'companies': Company.objects.all(),
         'lab_split': LabSplitConfig.objects.filter(is_active=True).first(),
         'home_split': HomeCareSplitConfig.objects.filter(is_active=True).first(),
+        'medicine_splits': MedicineSplitConfig.objects.filter(is_active=True),
+        'medicine_categories': MedicineSplitConfig.Categories,
         'exams': LabExam.objects.all(),
         'services': Service.objects.all(),
         'taux': get_current_rate(),
@@ -205,6 +208,29 @@ def home_split_create(request):
         log_event(user=request.user, action=AuditLog.Actions.CREATE,
                   module='settings_app', obj=cfg, ip_address=get_client_ip(request))
         return JsonResponse({'success': True, 'message': f'Nouvelle répartition domicile : {cfg}.'})
+    except (InvalidOperation, KeyError, ValueError) as e:
+        return JsonResponse({'success': False, 'message': f'Données invalides : {e}'}, status=400)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def medicine_split_create(request):
+    """Nouvelle répartition médecine — versionnée comme les autres (§12.1)."""
+    try:
+        data = json.loads(request.body)
+        cfg = MedicineSplitConfig(
+            category=data['category'],
+            prescriber_pct=Decimal(str(data['prescriber_pct'])),
+            center_pct=Decimal(str(data['center_pct'])),
+            effective_from=data.get('effective_from') or timezone.now(),
+            created_by=request.user,
+        )
+        cfg.full_clean()
+        cfg.save()
+        log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                  module='settings_app', obj=cfg, ip_address=get_client_ip(request))
+        return JsonResponse({'success': True, 'message': f'Nouvelle répartition : {cfg}.'})
     except (InvalidOperation, KeyError, ValueError) as e:
         return JsonResponse({'success': False, 'message': f'Données invalides : {e}'}, status=400)
 

@@ -46,7 +46,7 @@ class Company(TimeStampedModel):
 
 
 class Staff(TimeStampedModel):
-    """Docteurs et personnel du centre (Dr Rémy KAWELE, laborantins, A.G, cleaner...)."""
+    """Docteurs et personnel du centre."""
 
     class Titles(models.TextChoices):
         DOCTOR = 'DOCTOR', 'Docteur'
@@ -74,17 +74,14 @@ class Staff(TimeStampedModel):
 
 
 class ExchangeRate(TimeStampedModel):
-    """
-    Historique des taux de change. On ne MODIFIE jamais un taux passé :
-    on crée une nouvelle ligne (versionnage), cf. cahier des charges §10.1.
-    """
+    """Historique des taux — versionné (§10.1)."""
     USD = 'USD'
     FC = 'FC'
     CURRENCY_CHOICES = [(USD, 'Dollar ($)'), (FC, 'Franc congolais (FC)')]
 
     currency_from = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default=USD)
     currency_to = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default=FC)
-    rate = models.DecimalField(max_digits=12, decimal_places=4)  # ex: 2250.0000
+    rate = models.DecimalField(max_digits=12, decimal_places=4)
     effective_from = models.DateTimeField(verbose_name="Effectif à partir de")
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
@@ -104,7 +101,6 @@ class ExchangeRate(TimeStampedModel):
 
     @classmethod
     def current_rate(cls, currency_from=USD, currency_to=FC):
-        """Retourne le taux actuellement actif, ou None."""
         rate = cls.objects.filter(
             currency_from=currency_from,
             currency_to=currency_to,
@@ -112,7 +108,8 @@ class ExchangeRate(TimeStampedModel):
             effective_from__lte=models.functions.Now(),
         ).first()
         return rate.rate if rate else None
-    
+
+
 class LabExam(TimeStampedModel):
     """Catalogue des examens de laboratoire."""
 
@@ -130,10 +127,7 @@ class LabExam(TimeStampedModel):
 
 
 class LabSplitConfig(TimeStampedModel):
-    """
-    Répartition laboratoire (cf. §12.1) — versionnée comme le taux.
-    Défaut : 20 % prescripteur ; sur les 80 % restants : 60 % équipe labo, 40 % centre.
-    """
+    """Répartition laboratoire — versionnée (§12.1)."""
     prescriber_pct = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% prescripteur")
     lab_team_pct = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% équipe labo (du restant)")
     center_pct = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% centre (du restant)")
@@ -156,7 +150,7 @@ class LabSplitConfig(TimeStampedModel):
 
 
 class HomeCareSplitConfig(TimeStampedModel):
-    """Répartition soins à domicile : part médecin traitant + part centre = 100 %."""
+    """Répartition soins à domicile."""
     doctor_pct = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% médecin traitant")
     center_pct = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% centre")
     effective_from = models.DateTimeField()
@@ -172,3 +166,30 @@ class HomeCareSplitConfig(TimeStampedModel):
 
     def __str__(self):
         return f"Domicile: {self.doctor_pct}% médecin / {self.center_pct}% centre"
+
+
+class MedicineSplitConfig(TimeStampedModel):
+    """Répartition médecine — versionnée (§12.1)."""
+
+    class Categories(models.TextChoices):
+        GENERAL_CONSULTATION = 'GENERAL_CONSULTATION', 'Médecine générale — Consultation'
+        GENERAL_OTHER = 'GENERAL_OTHER', 'Médecine générale — Autre prestation'
+        MANUAL = 'MANUAL', 'Médecine manuelle'
+        MANUAL_OTHER = 'MANUAL_OTHER', 'Médecine manuelle — Autre prestation'
+
+    category = models.CharField(max_length=30, choices=Categories.choices)
+    prescriber_pct = models.DecimalField(max_digits=5, decimal_places=2)
+    center_pct = models.DecimalField(max_digits=5, decimal_places=2)
+    effective_from = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        ordering = ['category', '-effective_from']
+
+    def clean(self):
+        if self.prescriber_pct + self.center_pct != 100:
+            raise ValidationError("Prescripteur + centre doivent totaliser 100 %.")
+
+    def __str__(self):
+        return f"{self.get_category_display()} : {self.prescriber_pct}% / {self.center_pct}%"

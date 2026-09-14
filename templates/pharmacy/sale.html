@@ -4,45 +4,6 @@
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-<!-- ================= MODAL NOUVEAU PATIENT ================= -->
-<div id="patient-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closePatientModal()"></div>
-    <div class="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-lg flex items-center gap-2">
-                <i data-lucide="user-plus" class="w-5 h-5 text-brand-600"></i> Nouveau patient
-            </h3>
-            <button onclick="closePatientModal()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-            <input id="np-last-name" type="text" placeholder="Nom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
-            <input id="np-middle-name" type="text" placeholder="Post-nom" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
-            <input id="np-first-name" type="text" placeholder="Prénom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
-            <select id="np-sex" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
-                <option value="">Sexe *</option>
-                <option value="M">Masculin</option>
-                <option value="F">Féminin</option>
-            </select>
-            <input id="np-phone" type="tel" placeholder="Téléphone" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
-            <select id="np-day-pattern" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
-                <option value="ALL">Tous les jours</option>
-                <option value="EVEN">Jours pairs</option>
-                <option value="ODD">Jours impairs</option>
-            </select>
-        </div>
-
-        <div id="np-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
-
-        <button onclick="submitNewPatient(this)"
-                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
-            Enregistrer le patient
-        </button>
-    </div>
-</div> 
-
     <!-- ===== Nouvelle vente (panier) ===== -->
     <div class="lg:col-span-1 space-y-4">
         <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
@@ -50,9 +11,12 @@
                 <i data-lucide="pill" class="w-5 h-5 text-brand-600"></i> Nouvelle vente
             </h3>
 
-            <button onclick="openProductModal()" class="mb-3 w-full py-2.5 rounded-xl border-2 border-dashed border-brand-400 dark:border-brand-700 text-brand-700 dark:text-brand-300 text-sm font-semibold hover:bg-brand-50 dark:hover:bg-brand-950/40 transition flex items-center justify-center gap-2">
+            <button onclick="openProductModal()" class="mb-2 w-full py-2.5 rounded-xl border-2 border-dashed border-brand-400 dark:border-brand-700 text-brand-700 dark:text-brand-300 text-sm font-semibold hover:bg-brand-50 dark:hover:bg-brand-950/40 transition flex items-center justify-center gap-2">
                 <i data-lucide="package-plus" class="w-4 h-4"></i> Nouveau produit
             </button>
+            <a href="{% url 'pharmacy:products' %}" class="mb-3 w-full py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-sm font-semibold hover:bg-gray-100 dark:hover:bg-gray-800 transition flex items-center justify-center gap-2">
+                <i data-lucide="boxes" class="w-4 h-4"></i> Gérer le stock
+            </a>
 
             <!-- Patient -->
             <div class="mb-3">
@@ -140,6 +104,45 @@
     </div>
 </div>
 
+<!-- ================= MODAL NOUVEAU PATIENT ================= -->
+<div id="patient-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closePatientModal()"></div>
+    <div class="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+                <i data-lucide="user-plus" class="w-5 h-5 text-brand-600"></i> Nouveau patient
+            </h3>
+            <button onclick="closePatientModal()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <input id="np-last-name" type="text" placeholder="Nom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="np-middle-name" type="text" placeholder="Post-nom" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input id="np-first-name" type="text" placeholder="Prénom *" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="np-sex" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">Sexe *</option>
+                <option value="M">Masculin</option>
+                <option value="F">Féminin</option>
+            </select>
+            <input id="np-phone" type="tel" placeholder="Téléphone" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <select id="np-day-pattern" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="ALL">Tous les jours</option>
+                <option value="EVEN">Jours pairs</option>
+                <option value="ODD">Jours impairs</option>
+            </select>
+        </div>
+
+        <div id="np-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+
+        <button onclick="submitNewPatient(this)"
+                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+            Enregistrer le patient
+        </button>
+    </div>
+</div>
+
 <!-- ================= MODAL NOUVEAU PRODUIT ================= -->
 <div id="product-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeProductModal()"></div>
@@ -182,7 +185,6 @@
 {% block extra_js %}
 <script>
 let salePatient = null, cart = [], pTimer = null, prodTimer = null;
-const RATE_FC = 2250; // indicatif pour l'aperçu — le serveur recalcule tout
 
 /* ================= PATIENT ================= */
 const spInput = document.getElementById('s-patient-search');
@@ -221,7 +223,7 @@ function clearPatient() {
     document.getElementById('s-patient-selected').classList.add('hidden');
 }
 
-/* ================= MODAL NOUVEAU PATIENT ================= */
+/* ================= MODAL PATIENT ================= */
 function openPatientModal() {
     document.getElementById('patient-modal').classList.remove('hidden');
     lucide.createIcons();
@@ -254,7 +256,7 @@ async function submitNewPatient(btn) {
 
     if (data.success) {
         closePatientModal();
-        selectPatient(data.patient);   // le nouveau patient est sélectionné direct dans la vente
+        selectPatient(data.patient);
     } else {
         feedback.classList.remove('hidden');
         feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
@@ -324,6 +326,7 @@ function renderCart() {
             <b class="w-20 text-right text-xs text-brand-700 dark:text-brand-300 shrink-0">${((document.getElementById('s-currency').value === 'FC' ? c.price_fc : c.price_usd) * c.qty).toLocaleString('fr-FR')}</b>
             <button onclick="removeFromCart(${c.id})" class="text-gray-400 hover:text-red-500 shrink-0"><i data-lucide="x" class="w-4 h-4"></i></button>
         </div>`).join('');
+    lucide.createIcons();
     updateTotal();
 }
 
@@ -336,7 +339,7 @@ function updateTotal() {
 
 document.getElementById('s-currency').addEventListener('change', renderCart);
 
-/* ================= ENVOI ================= */
+/* ================= ENVOI VENTE ================= */
 async function submitSale(btn) {
     const feedback = document.getElementById('s-feedback');
     btn.disabled = true;

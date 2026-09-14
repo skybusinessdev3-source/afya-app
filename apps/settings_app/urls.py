@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/entreprise/<int:pk>/basculer/', views.company_toggle, name='company_toggle'),
     path('api/repartition-labo/', views.lab_split_create, name='lab_split_create'),
     path('api/repartition-domicile/', views.home_split_create, name='home_split_create'),
+    path('api/repartition-medecine/', views.medicine_split_create, name='medicine_split_create'),
     path('api/examen/<int:pk>/basculer/', views.exam_toggle, name='exam_toggle'),
     path('api/examen/<int:pk>/modifier/', views.exam_update, name='exam_update'),
     path('api/service/', views.service_create, name='service_create'),

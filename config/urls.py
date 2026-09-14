@@ -24,6 +24,7 @@ urlpatterns = [
     path('configuration/', include('apps.settings_app.urls')),
     path('compte/', include('apps.accounts.urls')),
     path('messagerie/', include('apps.messaging.urls')),
+    path('medecine/', include('apps.medicine.urls')),
 ]
 
 if settings.DEBUG:
