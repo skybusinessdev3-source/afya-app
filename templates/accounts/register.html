@@ -1,815 +1,199 @@
 {% extends 'base.html' %}
-
 {% block title %}Créer un compte — AFYA APP{% endblock %}
 
+{% block extra_css %}
+<style>
+    .m2-float { animation: m2Float 6s ease-in-out infinite; }
+    @keyframes m2Float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+    .m2-input { transition: border-color .2s, box-shadow .2s, background .2s; }
+    .m2-input:focus { border-color: #00ad53; box-shadow: 0 0 0 4px rgba(0,173,83,.12); outline: none; }
+    .m2-ecg path { stroke-dasharray: 400; stroke-dashoffset: 400;
+                   animation: m2Draw 2s ease-out .5s forwards, m2Glow 1.8s ease-in-out 2.5s infinite; }
+    @keyframes m2Draw { to { stroke-dashoffset: 0; } }
+    @keyframes m2Glow { 0%,100% { filter: drop-shadow(0 0 3px rgba(0,173,83,.5)); }
+                        50%      { filter: drop-shadow(0 0 8px rgba(0,173,83,.9)); } }
+</style>
+{% endblock %}
+
 {% block content %}
+<div class="min-h-screen flex bg-white dark:bg-slate-950">
 
-<div class="min-h-screen relative flex items-center justify-center overflow-hidden
-            bg-slate-50 dark:bg-[#070b14] px-4 py-8">
+    <!-- ===== GAUCHE : illustration (fond clair, style NWORX) ===== -->
+    <div class="hidden lg:flex w-[45%] relative overflow-hidden items-center justify-center
+                bg-gradient-to-br from-brand-50 via-white to-emerald-50 dark:from-slate-900 dark:via-slate-950 dark:to-brand-950 border-r border-slate-100 dark:border-slate-800">
+        <!-- décor -->
+        <div class="absolute top-16 left-16 w-40 h-40 rounded-full border-[10px] border-brand-100 dark:border-brand-900/50"></div>
+        <div class="absolute bottom-20 right-10 w-24 h-24 rounded-full bg-emerald-100 dark:bg-emerald-900/30"></div>
 
-    <!-- =====================================================
-         BACKGROUND DECORATION
-    ====================================================== -->
+        <div class="relative w-full max-w-md px-12">
+            <!-- Logo + nom centré -->
+            <div class="flex flex-col items-center mb-8">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#075e54] to-brand-600 flex items-center justify-center shadow-xl shadow-brand-600/30">
+                    <i data-lucide="activity" class="w-7 h-7 text-white"></i>
+                </div>
+                <div class="mt-3 font-black text-lg text-slate-900 dark:text-white">AFYA APP</div>
+                <div class="text-[10px] text-slate-400 uppercase tracking-[.25em]">CRF-MK · Kinshasa</div>
+            </div>
 
-    <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <!-- Grande illustration : médecin + écran (silhouettes SVG) -->
+            <svg viewBox="0 0 360 240" class="w-full" fill="none">
+                <!-- écran -->
+                <rect x="150" y="30" width="170" height="120" rx="10" fill="#075e54"/>
+                <rect x="158" y="38" width="154" height="104" rx="6" fill="#fff"/>
+                <rect x="158" y="38" width="154" height="104" rx="6" fill="url(#g1)"/>
+                <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#eafff3"/><stop offset="1" stop-color="#c8ffe0"/>
+                </linearGradient></defs>
+                <!-- mini UI dans l'écran -->
+                <rect x="168" y="50" width="60" height="8" rx="4" fill="#00ad53" opacity=".5"/>
+                <rect x="168" y="64" width="134" height="6" rx="3" fill="#00ad53" opacity=".2"/>
+                <rect x="168" y="76" width="110" height="6" rx="3" fill="#00ad53" opacity=".2"/>
+                <rect x="168" y="88" width="120" height="6" rx="3" fill="#00ad53" opacity=".2"/>
+                <rect x="168" y="106" width="50" height="24" rx="6" fill="#00ad53"/>
+                <!-- ECG dans l'écran -->
+                <polyline points="228,118 240,118 246,108 252,128 258,112 262,118 290,118" stroke="#00ad53" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- personne -->
+                <circle cx="80" cy="70" r="22" fill="#075e54"/>
+                <path d="M45 190 Q45 110 80 100 Q115 110 115 190 Z" fill="#075e54"/>
+                <!-- bras vers l'écran -->
+                <path d="M105 130 Q140 120 155 105" stroke="#075e54" stroke-width="12" stroke-linecap="round"/>
+                <!-- chaise -->
+                <rect x="30" y="150" width="10" height="70" rx="5" fill="#0a7268"/>
+                <rect x="20" y="185" width="90" height="10" rx="5" fill="#0a7268"/>
+                <!-- plante -->
+                <rect x="320" y="190" width="24" height="30" rx="4" fill="#f59e0b"/>
+                <path d="M332 190 Q322 160 330 150 Q336 165 334 190" fill="#00ad53"/>
+                <path d="M334 190 Q344 158 336 148 Q330 166 332 190" fill="#00ad53" opacity=".6"/>
+            </svg>
 
-        <div class="absolute -top-32 -left-32 w-96 h-96
-                    bg-emerald-400/20 dark:bg-emerald-500/10
-                    rounded-full blur-3xl">
+            <!-- ECG décoratif animé -->
+            <svg class="m2-ecg w-full h-10 mt-6" viewBox="0 0 300 40" fill="none">
+                <path d="M0 22 H60 L72 22 L80 8 L90 34 L98 16 L104 22 H140 L150 14 L158 22 H200 L210 4 L222 38 L230 22 H300"
+                      stroke="#00ad53" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
         </div>
-
-        <div class="absolute -bottom-40 -right-40 w-[32rem] h-[32rem]
-                    bg-cyan-400/20 dark:bg-cyan-500/10
-                    rounded-full blur-3xl">
-        </div>
-
-        <div class="absolute inset-0 opacity-[0.025] dark:opacity-[0.04]"
-             style="background-image:
-             linear-gradient(rgba(0,0,0,.8) 1px, transparent 1px),
-             linear-gradient(90deg, rgba(0,0,0,.8) 1px, transparent 1px);
-             background-size: 40px 40px;">
-        </div>
-
     </div>
 
+    <!-- ===== DROITE : formulaire ===== -->
+    <div class="flex-1 flex items-center justify-center px-6 py-10">
+        <div class="w-full max-w-md animate-fade-up">
 
-    <!-- =====================================================
-         MAIN CARD
-    ====================================================== -->
-
-    <div class="relative z-10 w-full max-w-5xl
-                grid lg:grid-cols-2
-                overflow-hidden
-                rounded-[2rem]
-                bg-white/95 dark:bg-slate-900/95
-                border border-slate-200 dark:border-slate-800
-                shadow-[0_25px_80px_rgba(15,23,42,.18)]
-                dark:shadow-[0_25px_80px_rgba(0,0,0,.45)]">
-
-
-        <!-- =================================================
-             LEFT — BRAND / PRESENTATION
-        ================================================== -->
-
-        <div class="hidden lg:flex relative overflow-hidden
-                    bg-gradient-to-br
-                    from-emerald-600 via-emerald-500 to-teal-600
-                    p-10 text-white flex-col justify-between">
-
-            <!-- Decorative circles -->
-
-            <div class="absolute -top-24 -right-24 w-72 h-72
-                        rounded-full bg-white/10 blur-sm">
-            </div>
-
-            <div class="absolute -bottom-32 -left-20 w-80 h-80
-                        rounded-full bg-black/10">
-            </div>
-
-
-            <!-- Brand -->
-
-            <div class="relative">
-
-                <div class="flex items-center gap-3">
-
-                    <div class="w-12 h-12 rounded-2xl
-                                bg-white/15 backdrop-blur-md
-                                border border-white/20
-                                flex items-center justify-center
-                                shadow-lg">
-
-                        <i data-lucide="activity"
-                           class="w-6 h-6">
-                        </i>
-
-                    </div>
-
-                    <div>
-                        <div class="text-xl font-black tracking-tight">
-                            AFYA
-                        </div>
-
-                        <div class="text-[11px] font-medium
-                                    text-emerald-100 uppercase tracking-[.2em]">
-                            Medical Platform
-                        </div>
-                    </div>
-
+            <!-- Logo mobile -->
+            <div class="lg:hidden flex items-center gap-3 mb-8">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#075e54] to-brand-600 flex items-center justify-center shadow-lg">
+                    <i data-lucide="activity" class="w-6 h-6 text-white"></i>
                 </div>
-
-
-                <div class="mt-16 max-w-md">
-
-                    <span class="inline-flex items-center gap-2
-                                 px-3 py-1.5 rounded-full
-                                 bg-white/10 border border-white/15
-                                 text-xs font-semibold">
-
-                        <span class="w-2 h-2 rounded-full bg-white"></span>
-
-                        Accès sécurisé
-                    </span>
-
-
-                    <h1 class="mt-5 text-4xl font-black leading-tight">
-                        Bienvenue dans
-                        <span class="text-emerald-100">
-                            AFYA APP
-                        </span>
-                    </h1>
-
-                    <p class="mt-5 text-sm leading-7
-                              text-emerald-50/85">
-                        Une plateforme centralisée pour gérer les patients,
-                        les consultations, la pharmacie, le laboratoire,
-                        les finances et la communication du centre médical.
-                    </p>
-
-                </div>
-
-            </div>
-
-
-            <!-- Security cards -->
-
-            <div class="relative space-y-3">
-
-                <div class="flex items-center gap-4
-                            p-4 rounded-2xl
-                            bg-white/10 backdrop-blur-md
-                            border border-white/10">
-
-                    <div class="w-10 h-10 rounded-xl
-                                bg-white/10
-                                flex items-center justify-center">
-
-                        <i data-lucide="shield-check"
-                           class="w-5 h-5">
-                        </i>
-
-                    </div>
-
-                    <div>
-                        <p class="text-sm font-bold">
-                            Accès contrôlé
-                        </p>
-
-                        <p class="text-xs text-emerald-100/70">
-                            Invitation du personnel autorisé
-                        </p>
-                    </div>
-
-                </div>
-
-
-                <div class="flex items-center gap-4
-                            p-4 rounded-2xl
-                            bg-white/10 backdrop-blur-md
-                            border border-white/10">
-
-                    <div class="w-10 h-10 rounded-xl
-                                bg-white/10
-                                flex items-center justify-center">
-
-                        <i data-lucide="lock-keyhole"
-                           class="w-5 h-5">
-                        </i>
-
-                    </div>
-
-                    <div>
-                        <p class="text-sm font-bold">
-                            Données protégées
-                        </p>
-
-                        <p class="text-xs text-emerald-100/70">
-                            Votre compte est personnel
-                        </p>
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-
-        <!-- =================================================
-             RIGHT — REGISTER FORM
-        ================================================== -->
-
-        <div class="p-6 sm:p-8 lg:p-10">
-
-            <!-- Mobile brand -->
-
-            <div class="lg:hidden flex justify-center mb-7">
-
-                <div class="flex items-center gap-3">
-
-                    <div class="w-11 h-11 rounded-xl
-                                bg-gradient-to-br from-emerald-500 to-teal-600
-                                text-white
-                                flex items-center justify-center
-                                shadow-lg shadow-emerald-500/20">
-
-                        <i data-lucide="activity"
-                           class="w-6 h-6">
-                        </i>
-
-                    </div>
-
-                    <div>
-
-                        <div class="font-black text-lg
-                                    text-slate-900 dark:text-white">
-                            AFYA
-                        </div>
-
-                        <div class="text-[10px] text-slate-400
-                                    uppercase tracking-[.2em]">
-                            Medical Platform
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            <!-- Header -->
-
-            <div class="mb-7">
-
-                <div class="flex items-center gap-3">
-
-                    <div class="w-11 h-11 rounded-xl
-                                bg-emerald-50 dark:bg-emerald-500/10
-                                text-emerald-600 dark:text-emerald-400
-                                flex items-center justify-center">
-
-                        <i data-lucide="user-plus"
-                           class="w-5 h-5">
-                        </i>
-
-                    </div>
-
-                    <div>
-
-                        <h2 class="text-2xl font-black
-                                   tracking-tight
-                                   text-slate-900 dark:text-white">
-
-                            Créer un compte
-
-                        </h2>
-
-                        <p class="text-xs text-slate-500
-                                  dark:text-slate-400 mt-0.5">
-
-                            Rejoignez l'espace sécurisé AFYA
-
-                        </p>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            <!-- Invitation information -->
-
-            <div class="mb-6 flex gap-3 p-4 rounded-2xl
-                        bg-emerald-50 dark:bg-emerald-500/10
-                        border border-emerald-100
-                        dark:border-emerald-500/20">
-
-                <i data-lucide="key-round"
-                   class="w-5 h-5 flex-shrink-0
-                          text-emerald-600 dark:text-emerald-400">
-                </i>
-
                 <div>
-
-                    <p class="text-xs font-bold
-                              text-emerald-800 dark:text-emerald-300">
-
-                        Invitation requise
-
-                    </p>
-
-                    <p class="mt-1 text-[11px] leading-5
-                              text-emerald-700/80
-                              dark:text-emerald-300/70">
-
-                        Utilisez le code d'invitation fourni par
-                        l'administrateur ou le directeur du centre.
-
-                    </p>
-
+                    <div class="font-black text-lg text-slate-900 dark:text-white">AFYA APP</div>
+                    <div class="text-[10px] text-slate-400 uppercase tracking-widest">CRF-MK · Kinshasa</div>
                 </div>
-
             </div>
 
+            <h2 class="text-3xl font-black text-slate-900 dark:text-white">Bienvenue sur AFYA !</h2>
+            <p class="text-sm text-slate-400 mt-1.5 mb-7">Créez votre compte personnel sécurisé</p>
 
-            <!-- =================================================
-                 FORM
-            ================================================== -->
+            <!-- Info invitation -->
+            <div class="mb-5 flex gap-3 p-3.5 rounded-2xl bg-brand-50 dark:bg-brand-500/10 border border-brand-200 dark:border-brand-500/20">
+                <i data-lucide="key-round" class="w-4 h-4 shrink-0 mt-0.5 text-brand-600 dark:text-brand-400"></i>
+                <p class="text-[11px] leading-5 text-brand-700/80 dark:text-brand-300/70">
+                    <b class="text-brand-800 dark:text-brand-300">Invitation requise</b> — utilisez le code fourni par l'administrateur ou le directeur du centre.
+                </p>
+            </div>
 
-            <form method="post"
-                  action="{% url 'accounts:register_submit' %}"
-                  class="space-y-4">
-
+            <form method="post" action="{% url 'accounts:register_submit' %}" class="space-y-3.5">
                 {% csrf_token %}
 
-
-                <!-- Invitation code -->
-
-                <div>
-
-                    <label for="code"
-                           class="block mb-1.5 text-xs font-bold
-                                  text-slate-700 dark:text-slate-300">
-
-                        Code d'invitation
-                        <span class="text-rose-500">*</span>
-
-                    </label>
-
-                    <div class="relative">
-
-                        <i data-lucide="key-round"
-                           class="absolute left-4 top-1/2
-                                  -translate-y-1/2
-                                  w-4 h-4
-                                  text-emerald-500">
-                        </i>
-
-                        <input
-                            id="code"
-                            type="text"
-                            name="code"
-                            placeholder="Entrez votre code"
-                            autocomplete="one-time-code"
-                            required
-                            class="w-full pl-11 pr-4 py-3.5
-                                   rounded-xl
-                                   border border-slate-200
-                                   dark:border-slate-700
-                                   bg-slate-50
-                                   dark:bg-slate-800/70
-                                   text-sm font-mono tracking-[.18em]
-                                   text-slate-900 dark:text-white
-                                   placeholder:text-slate-400
-                                   outline-none
-                                   transition
-                                   focus:border-emerald-500
-                                   focus:ring-4
-                                   focus:ring-emerald-500/10"
-                        >
-
-                    </div>
-
+                <div class="relative">
+                    <i data-lucide="key-round" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-600"></i>
+                    <input type="text" name="code" required autocomplete="one-time-code" placeholder="Code d'invitation *"
+                           class="m2-input w-full pl-11 pr-4 py-3.5 rounded-xl text-sm font-mono tracking-[.15em]
+                                  border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60
+                                  text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:tracking-normal placeholder:font-sans">
                 </div>
 
-
-                <!-- Names -->
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-                    <div>
-
-                        <label for="last_name"
-                               class="block mb-1.5 text-xs font-bold
-                                      text-slate-700 dark:text-slate-300">
-
-                            Nom
-
-                        </label>
-
-                        <input
-                            id="last_name"
-                            type="text"
-                            name="last_name"
-                            placeholder="Votre nom"
-                            autocomplete="family-name"
-                            class="w-full px-4 py-3.5
-                                   rounded-xl
-                                   border border-slate-200
-                                   dark:border-slate-700
-                                   bg-slate-50
-                                   dark:bg-slate-800/70
-                                   text-sm
-                                   text-slate-900 dark:text-white
-                                   placeholder:text-slate-400
-                                   outline-none
-                                   transition
-                                   focus:border-emerald-500
-                                   focus:ring-4
-                                   focus:ring-emerald-500/10"
-                        >
-
-                    </div>
-
-
-                    <div>
-
-                        <label for="first_name"
-                               class="block mb-1.5 text-xs font-bold
-                                      text-slate-700 dark:text-slate-300">
-
-                            Prénom
-
-                        </label>
-
-                        <input
-                            id="first_name"
-                            type="text"
-                            name="first_name"
-                            placeholder="Votre prénom"
-                            autocomplete="given-name"
-                            class="w-full px-4 py-3.5
-                                   rounded-xl
-                                   border border-slate-200
-                                   dark:border-slate-700
-                                   bg-slate-50
-                                   dark:bg-slate-800/70
-                                   text-sm
-                                   text-slate-900 dark:text-white
-                                   placeholder:text-slate-400
-                                   outline-none
-                                   transition
-                                   focus:border-emerald-500
-                                   focus:ring-4
-                                   focus:ring-emerald-500/10"
-                        >
-
-                    </div>
-
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="text" name="last_name" placeholder="Nom" autocomplete="family-name"
+                           class="m2-input w-full px-4 py-3.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white placeholder:text-slate-400">
+                    <input type="text" name="first_name" placeholder="Prénom" autocomplete="given-name"
+                           class="m2-input w-full px-4 py-3.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white placeholder:text-slate-400">
                 </div>
 
-
-                <!-- Username -->
-
-                <div>
-
-                    <label for="username"
-                           class="block mb-1.5 text-xs font-bold
-                                  text-slate-700 dark:text-slate-300">
-
-                        Nom d'utilisateur
-                        <span class="text-rose-500">*</span>
-
-                    </label>
-
-                    <div class="relative">
-
-                        <i data-lucide="user"
-                           class="absolute left-4 top-1/2
-                                  -translate-y-1/2
-                                  w-4 h-4
-                                  text-slate-400">
-                        </i>
-
-                        <input
-                            id="username"
-                            type="text"
-                            name="username"
-                            placeholder="Ex. rossy.wanose"
-                            autocomplete="username"
-                            required
-                            class="w-full pl-11 pr-4 py-3.5
-                                   rounded-xl
-                                   border border-slate-200
-                                   dark:border-slate-700
-                                   bg-slate-50
-                                   dark:bg-slate-800/70
-                                   text-sm
-                                   text-slate-900 dark:text-white
-                                   placeholder:text-slate-400
-                                   outline-none
-                                   transition
-                                   focus:border-emerald-500
-                                   focus:ring-4
-                                   focus:ring-emerald-500/10"
-                        >
-
-                    </div>
-
+                <div class="relative">
+                    <i data-lucide="user" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                    <input type="text" name="username" required autocomplete="username" placeholder="Nom d'utilisateur *"
+                           class="m2-input w-full pl-11 pr-4 py-3.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white placeholder:text-slate-400">
                 </div>
 
-
-                <!-- Password -->
-
-                <div>
-
-                    <label for="password"
-                           class="block mb-1.5 text-xs font-bold
-                                  text-slate-700 dark:text-slate-300">
-
-                        Mot de passe
-                        <span class="text-rose-500">*</span>
-
-                    </label>
-
-                    <div class="relative">
-
-                        <i data-lucide="lock"
-                           class="absolute left-4 top-1/2
-                                  -translate-y-1/2
-                                  w-4 h-4
-                                  text-slate-400">
-                        </i>
-
-                        <input
-                            id="password"
-                            type="password"
-                            name="password"
-                            placeholder="8 caractères minimum"
-                            minlength="8"
-                            autocomplete="new-password"
-                            required
-                            class="w-full pl-11 pr-12 py-3.5
-                                   rounded-xl
-                                   border border-slate-200
-                                   dark:border-slate-700
-                                   bg-slate-50
-                                   dark:bg-slate-800/70
-                                   text-sm
-                                   text-slate-900 dark:text-white
-                                   placeholder:text-slate-400
-                                   outline-none
-                                   transition
-                                   focus:border-emerald-500
-                                   focus:ring-4
-                                   focus:ring-emerald-500/10"
-                        >
-
-                        <button
-                            type="button"
-                            onclick="togglePassword()"
-                            class="absolute right-3 top-1/2
-                                   -translate-y-1/2
-                                   w-9 h-9 rounded-lg
-                                   flex items-center justify-center
-                                   text-slate-400
-                                   hover:text-emerald-500
-                                   hover:bg-slate-100
-                                   dark:hover:bg-slate-700
-                                   transition"
-                            aria-label="Afficher le mot de passe">
-
-                            <i id="password-eye"
-                               data-lucide="eye"
-                               class="w-4 h-4">
-                            </i>
-
-                        </button>
-
-                    </div>
-
-
-                    <!-- Password hint -->
-
-                    <div class="mt-2 flex items-center gap-2">
-
-                        <div class="h-1 flex-1 rounded-full
-                                    bg-slate-200 dark:bg-slate-700
-                                    overflow-hidden">
-
-                            <div id="password-strength"
-                                 class="h-full w-0 rounded-full
-                                        transition-all duration-300">
-                            </div>
-
-                        </div>
-
-                        <span id="password-strength-text"
-                              class="text-[10px] text-slate-400">
-                            Sécurité
-                        </span>
-
-                    </div>
-
+                <div class="relative">
+                    <i data-lucide="lock" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                    <input type="password" name="password" id="rpw" required minlength="8" autocomplete="new-password" placeholder="Mot de passe (8 caractères min) *"
+                           class="m2-input w-full pl-11 pr-12 py-3.5 rounded-xl text-sm border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-900 dark:text-white placeholder:text-slate-400">
+                    <button type="button" onclick="toggleRPw()" aria-label="Afficher le mot de passe"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-brand-600 transition">
+                        <i id="reye" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
                 </div>
-
-
-                <!-- Terms -->
+                <!-- Jauge -->
+                <div class="flex items-center gap-2 px-1">
+                    <div class="h-1 flex-1 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div id="rbar" class="h-full w-0 rounded-full transition-all duration-300"></div>
+                    </div>
+                    <span id="rtext" class="text-[10px] text-slate-400 w-12 text-right">Sécurité</span>
+                </div>
 
                 <div class="flex items-start gap-3 pt-1">
-
-                    <input
-                        id="terms"
-                        type="checkbox"
-                        required
-                        class="mt-0.5 w-4 h-4 rounded
-                               border-slate-300
-                               text-emerald-600
-                               focus:ring-emerald-500"
-                    >
-
-                    <label for="terms"
-                           class="text-[11px] leading-5
-                                  text-slate-500
-                                  dark:text-slate-400">
-
-                        Je comprends que ce compte est personnel
-                        et que mes accès sont soumis aux règles
-                        de sécurité du centre.
-
+                    <input id="terms" type="checkbox" required
+                           class="mt-0.5 w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                    <label for="terms" class="text-[11px] leading-5 text-slate-500 dark:text-slate-400">
+                        Je comprends que ce compte est personnel et soumis aux règles de sécurité du centre.
                     </label>
-
                 </div>
 
-
-                <!-- Submit -->
-
-                <button
-                    type="submit"
-                    class="group w-full py-3.5
-                           rounded-xl
-                           bg-gradient-to-r
-                           from-emerald-500 to-teal-600
-                           hover:from-emerald-600
-                           hover:to-teal-700
-                           text-white
-                           font-bold text-sm
-                           shadow-lg
-                           shadow-emerald-600/20
-                           hover:shadow-emerald-600/30
-                           transition-all duration-200
-                           active:scale-[.98]
-                           flex items-center justify-center gap-2">
-
-                    <i data-lucide="user-plus"
-                       class="w-4 h-4
-                              group-hover:scale-110
-                              transition-transform">
-                    </i>
-
-                    Créer mon compte
-
+                <button type="submit"
+                        class="w-full py-4 rounded-xl bg-gradient-to-r from-[#075e54] to-brand-600 hover:from-[#0a7268] hover:to-brand-500 text-white font-bold text-sm tracking-wide transition-all shadow-lg shadow-brand-600/30 active:scale-[.98] flex items-center justify-center gap-2">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i> CRÉER MON COMPTE
                 </button>
-
             </form>
 
-
-            <!-- Login -->
-
-            <div class="relative my-7">
-
-                <div class="absolute inset-0 flex items-center">
-                    <div class="w-full border-t
-                                border-slate-200
-                                dark:border-slate-800">
-                    </div>
-                </div>
-
-                <div class="relative flex justify-center">
-
-                    <span class="px-3 text-[10px] uppercase
-                                 tracking-widest
-                                 font-semibold
-                                 bg-white dark:bg-slate-900
-                                 text-slate-400">
-
-                        ou
-
-                    </span>
-
-                </div>
-
-            </div>
-
-
-            <p class="text-center text-xs
-                      text-slate-500 dark:text-slate-400">
-
-                Vous avez déjà un compte ?
-
-                <a href="{% url 'login' %}"
-                   class="font-bold
-                          text-emerald-600
-                          dark:text-emerald-400
-                          hover:text-emerald-700
-                          dark:hover:text-emerald-300
-                          transition">
-
-                    Se connecter
-
-                </a>
-
+            <p class="mt-6 text-center text-xs text-slate-400">
+                Première visite sans code ?
+                <a href="{% url 'login' %}" class="font-bold text-brand-600 dark:text-brand-400 hover:underline">Se connecter à la place</a>
             </p>
 
-
-            <!-- Security footer -->
-
-            <div class="mt-7 flex items-center justify-center gap-2
-                        text-[10px] text-slate-400">
-
-                <i data-lucide="shield-check"
-                   class="w-3.5 h-3.5">
-                </i>
-
-                <span>Accès sécurisé • AFYA APP</span>
-
-            </div>
-
+            <p class="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Vos données sont protégées · AFYA APP
+            </p>
         </div>
-
     </div>
-
 </div>
 
-
-<!-- =========================================================
-     JAVASCRIPT
-========================================================== -->
-
 <script>
-
-function togglePassword() {
-
-    const input = document.getElementById("password");
-    const icon = document.getElementById("password-eye");
-
-    if (input.type === "password") {
-
-        input.type = "text";
-        icon.setAttribute("data-lucide", "eye-off");
-
-    } else {
-
-        input.type = "password";
-        icon.setAttribute("data-lucide", "eye");
-
-    }
-
-    if (window.lucide) {
-        lucide.createIcons();
-    }
+function toggleRPw() {
+    const input = document.getElementById("rpw");
+    const icon = document.getElementById("reye");
+    input.type = input.type === "password" ? "text" : "password";
+    icon.setAttribute("data-lucide", input.type === "password" ? "eye" : "eye-off");
+    if (window.lucide) lucide.createIcons();
 }
 
-
-/* ---------------------------------------------------------
-   Password strength
---------------------------------------------------------- */
-
-const passwordInput = document.getElementById("password");
-const strengthBar = document.getElementById("password-strength");
-const strengthText = document.getElementById("password-strength-text");
-
-if (passwordInput) {
-
-    passwordInput.addEventListener("input", function () {
-
-        const password = this.value;
-
+/* Jauge de sécurité */
+const rpw = document.getElementById("rpw");
+const rbar = document.getElementById("rbar");
+const rtext = document.getElementById("rtext");
+if (rpw) {
+    rpw.addEventListener("input", function () {
+        const pw = this.value;
         let score = 0;
-
-        if (password.length >= 8) score++;
-        if (password.length >= 12) score++;
-        if (/[A-Z]/.test(password)) score++;
-        if (/[0-9]/.test(password)) score++;
-        if (/[^A-Za-z0-9]/.test(password)) score++;
-
-        const widths = [
-            "0%",
-            "20%",
-            "40%",
-            "60%",
-            "80%",
-            "100%"
-        ];
-
-        strengthBar.style.width = widths[score];
-
-        if (score <= 1) {
-
-            strengthText.textContent = "Faible";
-            strengthBar.className =
-                "h-full rounded-full transition-all duration-300 bg-rose-500";
-
-        } else if (score <= 3) {
-
-            strengthText.textContent = "Moyen";
-            strengthBar.className =
-                "h-full rounded-full transition-all duration-300 bg-amber-500";
-
-        } else {
-
-            strengthText.textContent = "Fort";
-            strengthBar.className =
-                "h-full rounded-full transition-all duration-300 bg-emerald-500";
-
-        }
-
+        if (pw.length >= 8) score++;
+        if (pw.length >= 12) score++;
+        if (/[A-Z]/.test(pw)) score++;
+        if (/[0-9]/.test(pw)) score++;
+        if (/[^A-Za-z0-9]/.test(pw)) score++;
+        rbar.style.width = (score * 20) + "%";
+        if (score <= 1) { rtext.textContent = "Faible"; rbar.className = "h-full rounded-full transition-all duration-300 bg-rose-500"; }
+        else if (score <= 3) { rtext.textContent = "Moyen"; rbar.className = "h-full rounded-full transition-all duration-300 bg-amber-500"; }
+        else { rtext.textContent = "Fort"; rbar.className = "h-full rounded-full transition-all duration-300 bg-brand-500"; }
     });
-
 }
-
 </script>
-
 {% endblock %}
