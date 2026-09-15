@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.finance.models import get_current_rate
+from apps.accounts.models import RegistrationCode, User
 
 from .models import (CenterConfig, Company, Staff, ExchangeRate, LabExam,
                      LabSplitConfig, HomeCareSplitConfig, MedicineSplitConfig)
@@ -33,6 +34,7 @@ def settings_page(request):
             ('entreprises', 'Entreprises'),
             ('repartitions', 'Répartitions'),
             ('medecine', 'Médecine'),
+            ('codes', 'Codes'),
             ('examens', 'Examens'),
             ('services', 'Services'),
         ],
@@ -47,6 +49,8 @@ def settings_page(request):
         'exams': LabExam.objects.all(),
         'services': Service.objects.all(),
         'taux': get_current_rate(),
+        'invitation_codes': RegistrationCode.objects.select_related('created_by', 'used_by')[:50],
+        'user_roles': User.Roles,  # ← import : from apps.accounts.models import User
     }
     return render(request, 'settings_app/index.html', context)
 
@@ -296,3 +300,45 @@ def service_toggle(request, pk):
     s.is_active = not s.is_active
     s.save(update_fields=['is_active'])
     return JsonResponse({'success': True, 'message': f"« {s.name} » : {'activé' if s.is_active else 'désactivé'}."})
+
+# ================= CODES D'INVITATION (§17.2) =================
+@login_required
+@require_POST
+@transaction.atomic
+def code_create(request):
+    """Génère un code d'invitation (rôle + durée). Affiché une fois, copiable."""
+    data = json.loads(request.body)
+    role = data.get('role', 'STAFF')
+    valid_days = int(data.get('valid_days', 7))
+    max_uses = int(data.get('max_uses', 1))
+
+    from datetime import timedelta
+    code = RegistrationCode.objects.create(
+        role=role,
+        created_by=request.user,
+        expires_at=timezone.now() + timedelta(days=valid_days),
+        max_uses=max_uses,
+    )
+    log_event(user=request.user, action=AuditLog.Actions.CREATE,
+              module='accounts', obj=code, ip_address=get_client_ip(request))
+    return JsonResponse({
+        'success': True,
+        'message': 'Code généré — copie-le maintenant, il ne sera plus affiché en clair.',
+        'code': code.code,
+        'role': code.get_role_display(),
+        'expires': f"{code.expires_at:%d/%m/%Y %H:%M}",
+    })
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def code_toggle(request, pk):
+    """Révoque / réactive un code d'invitation."""
+    c = RegistrationCode.objects.get(pk=pk)
+    c.is_active = not c.is_active
+    c.save(update_fields=['is_active'])
+    log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+              module='accounts', obj=c, ip_address=get_client_ip(request))
+    return JsonResponse({'success': True,
+                         'message': f"Code {c.code[:8]}… : {'réactivé' if c.is_active else 'révoqué'}."})

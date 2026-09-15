@@ -21,6 +21,9 @@
     /* Micro en enregistrement */
     .recording { background: #ef4444 !important; color: #fff !important; animation: pulse 1s infinite; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+    /* Surlignage des résultats de recherche */
+    .hl { background: #fde047; color: #713f12; padding: 0 2px; border-radius: 3px; font-weight: 600; }
+    .dark .hl { background: rgba(250, 204, 21, .35); color: #fde68a; }
 </style>
 {% endblock %}
 
@@ -173,7 +176,7 @@
 {% block extra_js %}
 <script>
 const USERS = {{ users_json|safe }};
-let currentConv = null, pollTimer = null, lastMessagesJson = '', ncModeSelected = 'priv', ncSelected = new Set();
+let currentConv = null, pollTimer = null, lastMessagesJson = '', lastMessagesData = [], ncModeSelected = 'priv', ncSelected = new Set();
 
 /* ================= ÉMOJIS ================= */
 const EMOJIS = [...'😀😁😂🤣😃😄😅😆😉😊😋😎😍😘🥰😜🤪🤔🤗🙂🙃😴🤤😪😷🤒🤕🥵🥶🥳🥺😢😭😤😠😡🤯😳🥴😇🤠🤡💀👻👽🙈🙉🙊💩😺😸💪👍👎👏🙏🤝✌️👌🫶❤️💔💯✨🔥🎉🎊⭐⚡🎂🌹☀️🌙'];
@@ -268,9 +271,22 @@ async function toggleRecording() {
     }
 }
 
+/* ================= RECHERCHE : échappement + surlignage ================= */
+function escHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function highlightText(escapedText, queryRaw) {
+    if (!queryRaw) return escapedText;
+    const q = escHtml(queryRaw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!q) return escapedText;
+    return escapedText.replace(new RegExp(q, 'gi'),
+        (m) => `<mark class="hl">${m}</mark>`);
+}
+
 /* ================= MISE EN FORME ================= */
-function fmtContent(text) {
-    let h = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function fmtContent(text, query) {
+    let h = escHtml(text);
+    h = highlightText(h, query);   // surligne AVANT d'ajouter le gras/italique
     h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
          .replace(/\*(.+?)\*/g, '<i>$1</i>')
          .replace(/`(.+?)`/g, '<code class="px-1 rounded bg-black/10 text-xs">$1</code>');
@@ -420,16 +436,16 @@ function renderConversations() {
                            ${currentConv === c.id ? 'bg-brand-100 dark:bg-brand-950/60' : 'hover:bg-gray-100 dark:hover:bg-gray-800/60'}">
                 <div class="relative shrink-0">
                     <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white font-bold shadow-md shadow-brand-600/20 group-hover:scale-105 transition">
-                        ${c.is_group ? '<i data-lucide="users" class="w-5 h-5"></i>' : c.name.charAt(0).toUpperCase()}
+                        ${c.is_group ? '<i data-lucide="users" class="w-5 h-5"></i>' : highlightText(escHtml(c.name.charAt(0).toUpperCase()), q)}
                     </div>
                     ${c.last_time ? '<span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-brand-500 border-2 border-white dark:border-gray-900"></span>' : ''}
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex justify-between items-baseline gap-2">
-                        <p class="font-bold truncate text-sm">${c.name}</p>
+                        <p class="font-bold truncate text-sm">${highlightText(escHtml(c.name), q)}</p>
                         <span class="text-[10px] text-gray-400 shrink-0">${c.last_time}</span>
                     </div>
-                    <p class="text-xs text-gray-400 truncate mt-0.5">${c.last_message || '<span class="italic">Nouvelle discussion</span>'}</p>
+                    <p class="text-xs text-gray-400 truncate mt-0.5">${c.last_message ? highlightText(escHtml(c.last_message), q) : '<span class="italic">Nouvelle discussion</span>'}</p>
                 </div>
             </button>`).join('')
         || `<div class="p-8 text-center">
@@ -461,6 +477,7 @@ function backToList() {
     clearInterval(pollTimer);
     currentConv = null;
     lastMessagesJson = '';
+    lastMessagesData = [];
     document.getElementById('conv-column').classList.remove('hidden');
     document.getElementById('chat-active').classList.add('hidden');
     document.getElementById('chat-active').classList.remove('flex');
@@ -482,6 +499,7 @@ async function loadMessages(forceScroll) {
     const json = JSON.stringify(data.messages);
     if (json === lastMessagesJson && !forceScroll) return;
     lastMessagesJson = json;
+    lastMessagesData = data.messages;      // mémorisé pour la recherche
     renderMessages(data.messages);
 }
 
@@ -508,8 +526,8 @@ function renderMessages(messages) {
                         ${m.mine ? 'bg-gradient-to-br from-brand-500 to-brand-700 text-white rounded-2xl'
                                  : 'bg-gray-100 dark:bg-gray-800 rounded-2xl border-b border-gray-200 dark:border-gray-700'}">
                 ${isImportant(m.id) ? '<span class="msg-star text-amber-400"><i data-lucide="star" class="w-4 h-4 fill-amber-400"></i></span>' : ''}
-                ${m.mine ? '' : `<p class="text-[11px] font-bold text-brand-600 dark:text-brand-400 mb-0.5">${m.sender}</p>`}
-                ${m.content ? `<p class="leading-relaxed">${fmtContent(m.content)}</p>` : ''}
+                ${m.mine ? '' : `<p class="text-[11px] font-bold text-brand-600 dark:text-brand-400 mb-0.5">${highlightText(escHtml(m.sender), search)}</p>`}
+                ${m.content ? `<p class="leading-relaxed">${fmtContent(m.content, search)}</p>` : ''}
                 ${atts}
                 <p class="text-[10px] mt-1 flex items-center justify-end gap-1 ${m.mine ? 'text-brand-100' : 'text-gray-400'}">
                     ${m.ephemeral_hours ? '<span title="Éphémère">⏳</span>' : ''}
@@ -528,10 +546,7 @@ function renderMessages(messages) {
 }
 
 function filterMessages() {
-    const q = document.getElementById('chat-search').value.toLowerCase();
-    document.querySelectorAll('.msg-row').forEach(row => {
-        row.classList.toggle('hidden', q && !row.dataset.text.includes(q));
-    });
+    renderMessages(lastMessagesData);      // re-rend avec surlignage
 }
 
 /* ================= ENVOI ================= */
@@ -690,7 +705,6 @@ function fmtTime(s) {
 function toggleAudio(id) {
     const a = document.getElementById(id);
     if (!a) return;
-    // Un seul lecteur à la fois
     document.querySelectorAll('#messages audio').forEach(x => { if (x.id !== id && !x.paused) x.pause(); });
     a.paused ? a.play() : a.pause();
 }

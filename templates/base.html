@@ -5,6 +5,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}CRF-MK — AFYA APP{% endblock %}</title>
+    <!-- PWA -->
+    <link rel="icon" type="image/png" href="{% static 'icons/icon-192.png' %}">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <meta name="theme-color" content="#00ad53">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="{% static 'icons/apple-touch-icon.png' %}">
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register("{% static 'sw.js' %}").catch(() => {});
+        }
+    </script>
 
     <!-- Thème appliqué AVANT le rendu (zéro flash) -->
     <script>

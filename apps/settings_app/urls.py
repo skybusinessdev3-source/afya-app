@@ -20,4 +20,6 @@ urlpatterns = [
     path('api/examen/<int:pk>/modifier/', views.exam_update, name='exam_update'),
     path('api/service/', views.service_create, name='service_create'),
     path('api/service/<int:pk>/basculer/', views.service_toggle, name='service_toggle'),
+    path('api/code/', views.code_create, name='code_create'),
+    path('api/code/<int:pk>/basculer/', views.code_toggle, name='code_toggle'),
 ]

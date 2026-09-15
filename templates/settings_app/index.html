@@ -253,6 +253,49 @@
         </div>
     </div>
 </section>
+
+
+<!-- ================= CODES D'INVITATION ================= -->
+<section id="tabcontent-codes" class="tab-content hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-sky-300 dark:border-sky-800">
+            <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="key-round" class="w-5 h-5 text-sky-500"></i> Générer un code d'invitation</h3>
+            <p class="text-xs text-gray-400 mb-3">§17.2 — code temporaire, à durée limitée, révocable, audité.</p>
+            <select id="cd-role" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm mb-2">
+                {% for r in user_roles %}<option value="{{ r.value }}">{{ r.label }}</option>{% endfor %}
+            </select>
+            <div class="grid grid-cols-2 gap-2">
+                <input id="cd-days" type="number" min="1" value="7" placeholder="Valide (jours)" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="cd-uses" type="number" min="1" value="1" placeholder="Usages max" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            </div>
+            <div id="cd-result" class="hidden mt-3 p-3 rounded-xl bg-sky-50 dark:bg-sky-950 border border-sky-300 dark:border-sky-800">
+                <p class="text-xs text-gray-400">Code à transmettre (usage unique) :</p>
+                <div class="flex items-center gap-2 mt-1">
+                    <code id="cd-code" class="flex-1 font-mono text-sm font-bold text-sky-700 dark:text-sky-300 break-all"></code>
+                    <button onclick="navigator.clipboard.writeText(document.getElementById('cd-code').textContent)" class="text-xs px-2.5 py-1 rounded-lg bg-sky-200 dark:bg-sky-900 font-semibold shrink-0">Copier</button>
+                </div>
+            </div>
+            <div id="cd-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+            <button onclick="generateCode(this)" class="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-sky-700 text-white font-semibold text-sm active:scale-[.98]">Générer le code</button>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 font-bold text-sm">Codes générés</div>
+            <div class="divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto">
+                {% for c in invitation_codes %}
+                <div class="px-4 py-2.5 text-sm {% if not c.is_valid %}opacity-40{% endif %}">
+                    <div class="flex items-center justify-between gap-2">
+                        <code class="font-mono font-semibold">{{ c.code|slice:":12" }}…</code>
+                        <button onclick="toggleCode({{ c.id }})" class="text-xs px-2.5 py-1 rounded-lg {% if c.is_active %}bg-red-100 dark:bg-red-950 text-red-600{% else %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% endif %} font-semibold shrink-0">
+                            {% if c.is_active %}Révoquer{% else %}Réactiver{% endif %}
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-0.5">{{ c.get_role_display }} · expire {{ c.expires_at|date:"d/m/Y" }} · {{ c.use_count }}/{{ c.max_uses }} usage(s){% if c.used_by %} · utilisé par {{ c.used_by }}{% endif %}</p>
+                </div>
+                {% empty %}<p class="p-4 text-sm text-gray-400 text-center">Aucun code généré.</p>{% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
 {% endblock %}
 
 {% block extra_js %}
@@ -376,5 +419,34 @@ document.getElementById('sv-fc').addEventListener('input', () => {
     const fc = parseFloat(c('sv-fc'));
     if (fc > 0) document.getElementById('sv-usd').value = (fc / parseFloat(document.getElementById('sv-rate').value || '2250')).toFixed(2);
 });
+
+async function generateCode(btn) {
+    btn.disabled = true;
+    const res = await fetch("{% url 'settings_app:code_create' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({
+            role: c('cd-role'),
+            valid_days: c('cd-days') || 7,
+            max_uses: c('cd-uses') || 1,
+        }),
+    });
+    const data = await res.json();
+    const fb = document.getElementById('cd-feedback');
+    if (data.success) {
+        fb.classList.remove('hidden');
+        fb.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
+        fb.textContent = '✓ ' + data.message;
+        document.getElementById('cd-code').textContent = data.code;
+        document.getElementById('cd-result').classList.remove('hidden');
+    } else {
+        fb.classList.remove('hidden');
+        fb.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
+        fb.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
+const toggleCode = (id) => post(`/configuration/api/code/${id}/basculer/`, {}, document.getElementById('cd-feedback'));
 </script>
 {% endblock %}
