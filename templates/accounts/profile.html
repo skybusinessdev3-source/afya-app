@@ -26,7 +26,7 @@
         <form method="post" action="{% url 'accounts:profile_avatar' %}" enctype="multipart/form-data" class="mb-4">
             {% csrf_token %}
             <div class="flex gap-2 items-center">
-                <input type="file" name="avatar" accept="image/*" class="flex-1 px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 text-sm text-gray-400">
+                <input type="file" name="avatar" accept="image/*" required class="flex-1 px-3 py-2 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 text-sm text-gray-400">
                 <button type="submit" class="px-4 py-2 rounded-xl bg-gray-200 dark:bg-gray-700 text-sm font-semibold hover:bg-gray-300 dark:hover:bg-gray-600">Photo</button>
             </div>
         </form>

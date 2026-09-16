@@ -1,12 +1,15 @@
+import json
+
 from django.contrib import messages
+from django.contrib.auth import login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
-from django.shortcuts import redirect
+
 from .models import User, RegistrationCode
 
 
@@ -14,6 +17,8 @@ def get_client_ip(request):
     x = request.META.get('HTTP_X_FORWARDED_FOR')
     return x.split(',')[0] if x else request.META.get('REMOTE_ADDR')
 
+
+# ================= PROFIL =================
 
 @login_required
 def profile_page(request):
@@ -24,7 +29,6 @@ def profile_page(request):
 @require_POST
 def profile_update(request):
     """Nom, prénom, téléphone — les champs vides ne sont JAMAIS écrasés."""
-    import json
     data = json.loads(request.body)
     u = request.user
     changed = []
@@ -48,10 +52,6 @@ def profile_update(request):
 @login_required
 @require_POST
 def profile_avatar(request):
-    """Photo de profil (multipart)."""
-@login_required
-@require_POST
-def profile_avatar(request):
     """Photo de profil (multipart) — redirige vers la page profil avec message."""
     if request.FILES.get('avatar'):
         request.user.avatar = request.FILES['avatar']
@@ -68,7 +68,6 @@ def profile_avatar(request):
 @require_POST
 def profile_password(request):
     """Changement de mot de passe avec vérification de l'ancien."""
-    import json
     data = json.loads(request.body)
     if not request.user.check_password(data.get('old_password', '')):
         return JsonResponse({'success': False, 'message': 'Ancien mot de passe incorrect.'}, status=400)
@@ -82,11 +81,8 @@ def profile_password(request):
               module='accounts', obj=request.user, ip_address=get_client_ip(request))
     return JsonResponse({'success': True, 'message': 'Mot de passe modifié. Veuillez vous reconnecter.'})
 
-from django.contrib.auth import login as auth_login
-from django.shortcuts import redirect, render
 
-from .models import RegistrationCode
-
+# ================= REGISTER (code d'invitation §17.2) =================
 
 def register_page(request):
     if request.user.is_authenticated:
@@ -96,7 +92,7 @@ def register_page(request):
 
 @require_POST
 def register(request):
-    """Création de compte via code d'invitation (§17.2)."""
+    """Création de compte via code d'invitation."""
     code_str = request.POST.get('code', '').strip()
     username = request.POST.get('username', '').strip()
     password = request.POST.get('password', '')

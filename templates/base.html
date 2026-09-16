@@ -375,7 +375,7 @@
         <a href="{% url 'medicine:manual' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'medicine' and un == 'manual' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="hand" class="w-5 h-5"></i> Médecine manuelle
         </a>
-        <a href="{% url 'admin:index' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
+        <a href="{% url 'settings_app:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/60">
             <i data-lucide="settings" class="w-5 h-5"></i> Administration
         </a>
     </nav>

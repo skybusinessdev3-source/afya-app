@@ -11,6 +11,7 @@ class User(AbstractUser):
     class Roles(models.TextChoices):
         ADMIN = 'ADMIN', 'Administrateur système'
         DIRECTOR = 'DIRECTOR', 'Directeur'
+        MANAGER = 'MANAGER', 'Gestionnaire'
         ASSISTANT_MANAGER = 'ASSISTANT_MANAGER', 'Assistant manager'
         DOCTOR = 'DOCTOR', 'Médecin'
         LAB_TECH = 'LAB_TECH', 'Technicien de laboratoire'
