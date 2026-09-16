@@ -127,5 +127,32 @@ def patient_detail(request, pk):
         'total_due_usd': total_due_usd,
         'total_paid_usd': total_paid_usd,
         'total_remaining_usd': total_due_usd - total_paid_usd,
+        'companies': Company.objects.filter(is_active=True),
     }
     return render(request, 'patients/detail.html', context)
+
+@login_required
+@require_POST
+@transaction.atomic
+def patient_update(request, pk):
+    """Modification d'un patient (identité, entreprise, séances prescrites)."""
+    try:
+        data = json.loads(request.body)
+        p = Patient.objects.get(pk=pk, is_active=True)
+        p.last_name = data.get('last_name', p.last_name).strip() or p.last_name
+        p.middle_name = data.get('middle_name', p.middle_name).strip()
+        p.first_name = data.get('first_name', p.first_name).strip()
+        if data.get('sex') in ('M', 'F'):
+            p.sex = data['sex']
+        p.birth_place = data.get('birth_place', p.birth_place).strip()
+        p.birth_date = data.get('birth_date') or p.birth_date
+        p.phone = data.get('phone', p.phone).strip()
+        p.company_id = data.get('company_id') or None
+        p.day_pattern = data.get('day_pattern', p.day_pattern)
+        p.sessions_prescribed = int(data.get('sessions_prescribed', p.sessions_prescribed) or 0)
+        p.save()
+        log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+                  module='patients', obj=p, ip_address=get_client_ip(request))
+        return JsonResponse({'success': True, 'message': f'{p.full_name} mis à jour.'})
+    except (Patient.DoesNotExist, ValueError):
+        return JsonResponse({'success': False, 'message': 'Données invalides.'}, status=400)

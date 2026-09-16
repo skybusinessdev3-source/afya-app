@@ -8,6 +8,9 @@
         <h3 class="font-bold mb-4 flex items-center gap-2">
             <i data-lucide="user-round" class="w-5 h-5 text-brand-600"></i> Informations
         </h3>
+                <button onclick="openEditPatient()" class="ml-auto text-xs px-3 py-1.5 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold flex items-center gap-1">
+                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Modifier
+                </button>
         <dl class="space-y-2 text-sm">
             <div class="flex justify-between"><dt class="text-gray-400">Nom</dt><dd class="font-semibold">{{ p.full_name }}</dd></div>
             <div class="flex justify-between"><dt class="text-gray-400">Sexe</dt><dd>{{ p.get_sex_display }}</dd></div>
@@ -94,4 +97,87 @@
         </div>
     </div>
 </div>
+
+<!-- ================= MODAL MODIFIER PATIENT ================= -->
+<div id="edit-patient-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeEditPatient()"></div>
+    <div class="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2"><i data-lucide="pencil" class="w-5 h-5 text-brand-600"></i> Modifier le patient</h3>
+            <button onclick="closeEditPatient()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <input id="ep-last" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" placeholder="Nom *">
+            <input id="ep-middle" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" placeholder="Post-nom">
+            <input id="ep-first" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" placeholder="Prénom *">
+            <select id="ep-sex" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="M">Masculin</option><option value="F">Féminin</option>
+            </select>
+            <input id="ep-phone" type="tel" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" placeholder="Téléphone">
+            <select id="ep-day" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="ALL">Tous les jours</option><option value="EVEN">Jours pairs</option><option value="ODD">Jours impairs</option>
+            </select>
+            <select id="ep-company" class="col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">— Entreprise —</option>
+                {% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+            <input id="ep-sessions" type="number" min="0" class="col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" placeholder="Séances prescrites">
+        </div>
+        <div id="ep-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+        <button onclick="submitEditPatient(this)" class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">Enregistrer</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PATIENT = { id: {{ p.id }}, last_name: '{{ p.last_name|escapejs }}', middle_name: '{{ p.middle_name|escapejs }}',
+    first_name: '{{ p.first_name|escapejs }}', sex: '{{ p.sex }}', phone: '{{ p.phone|escapejs }}',
+    day_pattern: '{{ p.day_pattern }}', company_id: '{{ p.company_id|default:"" }}', sessions: {{ p.sessions_prescribed }} };
+
+function openEditPatient() {
+    ep('ep-last', PATIENT.last_name); ep('ep-middle', PATIENT.middle_name); ep('ep-first', PATIENT.first_name);
+    document.getElementById('ep-sex').value = PATIENT.sex;
+    ep('ep-phone', PATIENT.phone);
+    document.getElementById('ep-day').value = PATIENT.day_pattern;
+    document.getElementById('ep-company').value = PATIENT.company_id;
+    ep('ep-sessions', PATIENT.sessions);
+    document.getElementById('edit-patient-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closeEditPatient() { document.getElementById('edit-patient-modal').classList.add('hidden'); }
+function ep(id, v) { document.getElementById(id).value = v; }
+
+async function submitEditPatient(btn) {
+    const res = await fetch(`/patients/${PATIENT.id}/modifier/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({
+            last_name: v('ep-last'), middle_name: v('ep-middle'), first_name: v('ep-first'),
+            sex: document.getElementById('ep-sex').value, phone: v('ep-phone'),
+            day_pattern: document.getElementById('ep-day').value,
+            company_id: document.getElementById('ep-company').value || null,
+            sessions_prescribed: v('ep-sessions'),
+        }),
+    });
+    const data = await res.json();
+    const fb = document.getElementById('ep-feedback');
+    fb.classList.remove('hidden', 'bg-red-100', 'dark:bg-red-950', 'text-red-700',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+    if (data.success) {
+        fb.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+        fb.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 800);
+    } else {
+        fb.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700');
+        fb.textContent = '✗ ' + data.message;
+    }
+}
+function v(id) { return document.getElementById(id).value; }
+function getCookie(name) {
+    let c = null;
+    document.cookie.split(';').forEach(x => { const [k, val] = x.trim().split('='); if (k === name) c = decodeURIComponent(val); });
+    return c;
+}
+</script>
 {% endblock %}
