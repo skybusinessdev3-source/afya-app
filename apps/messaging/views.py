@@ -18,15 +18,20 @@ def get_client_ip(request):
 
 
 def _conversation_data(conv, user):
+    """Représentation JSON d'une conversation — avec avatar de l'autre membre."""
+    avatar = ''
     if conv.type == Conversation.Types.PRIVATE:
         other = conv.members.filter(is_active=True).exclude(user=user).first()
         name = (other.user.get_full_name() or other.user.username) if other else 'Inconnu'
+        if other and other.user.avatar:
+            avatar = other.user.avatar.url
     else:
         name = conv.name
     last = conv.messages.filter(is_deleted=False, sender__isnull=False).first()
     return {
         'id': conv.id,
         'name': name,
+        'avatar': avatar,
         'is_group': conv.type == Conversation.Types.GROUP,
         'last_message': (last.content or '[pièce jointe]')[:40] if last else '',
         'last_time': last.created_at.strftime('%H:%M') if last else '',
@@ -75,6 +80,7 @@ def api_messages(request, conv_id):
         messages.append({
             'id': m.id,
             'sender': m.sender.get_full_name() or m.sender.username if m.sender else '—',
+            'avatar': m.sender.avatar.url if (m.sender and m.sender.avatar) else '',
             'mine': m.sender_id == request.user.id,
             'content': m.content,
             'time': m.created_at.strftime('%H:%M'),
@@ -180,6 +186,7 @@ def api_create_group(request):
     log_event(user=request.user, action=AuditLog.Actions.CREATE,
               module='messaging', obj=conv, ip_address=get_client_ip(request))
     return JsonResponse({'success': True, 'conversation_id': conv.id})
+
 
 @login_required
 @require_POST

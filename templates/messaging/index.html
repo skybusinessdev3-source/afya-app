@@ -76,7 +76,7 @@
                     <i data-lucide="chevron-left" class="w-5 h-5"></i>
                 </button>
                 <div class="relative shrink-0">
-                    <div id="chat-avatar" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-600/30">?</div>
+                    <div id="chat-avatar" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white font-extrabold shadow-md shadow-brand-600/30 overflow-hidden">?</div>
                     <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-brand-500 border-2 border-white dark:border-gray-900"></span>
                 </div>
                 <div class="flex-1 min-w-0">
@@ -96,8 +96,9 @@
             <div class="p-2.5 sm:p-3 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
                 <div class="relative">
                     <!-- Panneau émojis -->
-                    <div id="emoji-panel" class="hidden absolute bottom-14 left-0 z-20 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-2 animate-pop-in">
-                        <div id="emoji-grid" class="grid grid-cols-8 gap-0.5 text-xl"></div>
+                    <!-- Sélecteur d'émojis (bibliothèque complète) -->
+                    <div id="emoji-panel" class="hidden absolute bottom-14 left-0 z-20 animate-pop-in">
+                        <emoji-picker id="emoji-picker" class="light"></emoji-picker>
                     </div>
                     <!-- Barre de saisie -->
                     <div class="flex items-end gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-2xl p-1.5">
@@ -179,27 +180,31 @@ const USERS = {{ users_json|safe }};
 let currentConv = null, pollTimer = null, lastMessagesJson = '', lastMessagesData = [], ncModeSelected = 'priv', ncSelected = new Set();
 
 /* ================= ÉMOJIS ================= */
-const EMOJIS = [...'😀😁😂🤣😃😄😅😆😉😊😋😎😍😘🥰😜🤪🤔🤗🙂🙃😴🤤😪😷🤒🤕🥵🥶🥳🥺😢😭😤😠😡🤯😳🥴😇🤠🤡💀👻👽🙈🙉🙊💩😺😸💪👍👎👏🙏🤝✌️👌🫶❤️💔💯✨🔥🎉🎊⭐⚡🎂🌹☀️🌙'];
-
-function renderEmojiPanel() {
-    document.getElementById('emoji-grid').innerHTML = EMOJIS.map(e =>
-        `<button class="w-8 h-8 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-950 transition flex items-center justify-center" onclick="insertEmoji('${e}')">${e}</button>`
-    ).join('');
-}
+/* ================= SÉLECTEUR D'ÉMOJIS (emoji-picker-element) ================= */
 function toggleEmojiPanel() {
     const p = document.getElementById('emoji-panel');
     p.classList.toggle('hidden');
     if (!p.classList.contains('hidden') && !p.dataset.loaded) {
-        renderEmojiPanel();
-        p.dataset.loaded = '1';
+        // Chargement dynamique de la bibliothèque (une seule fois)
+        import('https://cdn.jsdelivr.net/npm/emoji-picker-element@1.26.1/index.js').then(() => {
+            const picker = document.getElementById('emoji-picker');
+            picker.classList.toggle('dark', document.documentElement.classList.contains('dark'));
+            picker.addEventListener('emoji-click', (e) => insertEmoji(e.detail.unicode));
+            p.dataset.loaded = '1';
+        });
+    } else if (!p.classList.contains('hidden')) {
+        document.getElementById('emoji-picker').classList.toggle('dark',
+            document.documentElement.classList.contains('dark'));
     }
 }
+
 function insertEmoji(emoji) {
     const input = document.getElementById('msg-input');
     const pos = input.selectionStart || input.value.length;
     input.value = input.value.slice(0, pos) + emoji + input.value.slice(pos);
     input.focus();
     input.selectionStart = input.selectionEnd = pos + emoji.length;
+    document.getElementById('emoji-panel').classList.add('hidden'); // se ferme après le choix
 }
 
 /* ================= ÉPHÉMÈRE : notification de changement ================= */
@@ -286,7 +291,7 @@ function highlightText(escapedText, queryRaw) {
 /* ================= MISE EN FORME ================= */
 function fmtContent(text, query) {
     let h = escHtml(text);
-    h = highlightText(h, query);   // surligne AVANT d'ajouter le gras/italique
+    h = highlightText(h, query);
     h = h.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
          .replace(/\*(.+?)\*/g, '<i>$1</i>')
          .replace(/`(.+?)`/g, '<code class="px-1 rounded bg-black/10 text-xs">$1</code>');
@@ -431,12 +436,16 @@ function renderConversations() {
     document.getElementById('conv-list').innerHTML = allConversations
         .filter(c => c.name.toLowerCase().includes(q))
         .map(c => `
-            <button onclick="openConversation(${c.id}, '${c.name.replace(/'/g, "\\'")}')"
+            <button onclick="openConversation(${c.id}, '${c.name.replace(/'/g, "\\'")}', '${c.avatar}')"
                     class="conv-item w-full text-left px-3 py-3 rounded-xl transition flex items-center gap-3 group
                            ${currentConv === c.id ? 'bg-brand-100 dark:bg-brand-950/60' : 'hover:bg-gray-100 dark:hover:bg-gray-800/60'}">
                 <div class="relative shrink-0">
-                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white font-bold shadow-md shadow-brand-600/20 group-hover:scale-105 transition">
-                        ${c.is_group ? '<i data-lucide="users" class="w-5 h-5"></i>' : highlightText(escHtml(c.name.charAt(0).toUpperCase()), q)}
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-400 to-brand-700 flex items-center justify-center text-white font-bold shadow-md shadow-brand-600/20 group-hover:scale-105 transition overflow-hidden">
+                        ${c.is_group
+                            ? '<i data-lucide="users" class="w-5 h-5"></i>'
+                            : c.avatar
+                                ? `<img src="${c.avatar}" alt="" class="w-full h-full object-cover">`
+                                : highlightText(escHtml(c.name.charAt(0).toUpperCase()), q)}
                     </div>
                     ${c.last_time ? '<span class="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-brand-500 border-2 border-white dark:border-gray-900"></span>' : ''}
                 </div>
@@ -457,7 +466,7 @@ function renderConversations() {
 
 function filterConversations() { renderConversations(); }
 
-async function openConversation(id, name) {
+async function openConversation(id, name, avatar) {
     currentConv = id;
     if (window.innerWidth < 1024) {
         document.getElementById('conv-column').classList.add('hidden');
@@ -466,7 +475,9 @@ async function openConversation(id, name) {
     document.getElementById('chat-active').classList.remove('hidden');
     document.getElementById('chat-active').classList.add('flex');
     document.getElementById('chat-name').textContent = name;
-    document.getElementById('chat-avatar').textContent = name.charAt(0).toUpperCase();
+    document.getElementById('chat-avatar').innerHTML = avatar
+        ? `<img src="${avatar}" alt="" class="w-full h-full object-cover">`
+        : name.charAt(0).toUpperCase();
     renderConversations();
     await loadMessages(true);
     clearInterval(pollTimer);
@@ -499,7 +510,7 @@ async function loadMessages(forceScroll) {
     const json = JSON.stringify(data.messages);
     if (json === lastMessagesJson && !forceScroll) return;
     lastMessagesJson = json;
-    lastMessagesData = data.messages;      // mémorisé pour la recherche
+    lastMessagesData = data.messages;
     renderMessages(data.messages);
 }
 
@@ -546,7 +557,7 @@ function renderMessages(messages) {
 }
 
 function filterMessages() {
-    renderMessages(lastMessagesData);      // re-rend avec surlignage
+    renderMessages(lastMessagesData);
 }
 
 /* ================= ENVOI ================= */
@@ -666,7 +677,7 @@ async function submitNewChat() {
         if (data.success) {
             closeNewChat();
             await loadConversations();
-            openConversation(data.conversation_id, u.name);
+            openConversation(data.conversation_id, u.name, u.avatar || '');
         }
     } else {
         const name = document.getElementById('nc-group-name').value.trim();
@@ -680,7 +691,7 @@ async function submitNewChat() {
         if (data.success) {
             closeNewChat();
             await loadConversations();
-            openConversation(data.conversation_id, name);
+            openConversation(data.conversation_id, name, '');
         }
     }
 }
