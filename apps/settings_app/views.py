@@ -330,6 +330,7 @@ def code_create(request):
     })
 
 
+# ========================= Modification du service, tarf etc... ====================
 @login_required
 @require_POST
 @transaction.atomic
@@ -342,3 +343,25 @@ def code_toggle(request, pk):
               module='accounts', obj=c, ip_address=get_client_ip(request))
     return JsonResponse({'success': True,
                          'message': f"Code {c.code[:8]}… : {'réactivé' if c.is_active else 'révoqué'}."})
+    
+@login_required
+@require_POST
+@transaction.atomic
+def service_update(request, pk):
+    """Modification d'un service du centre (nom + tarifs $/FC)."""
+    from apps.centre.models import Service
+    try:
+        s = Service.objects.get(pk=pk)
+        data = json.loads(request.body)
+        if data.get('name', '').strip():
+            s.name = data['name'].strip()
+        s.price_usd = Decimal(str(data['price_usd']))
+        s.price_fc = Decimal(str(data['price_fc']))
+        if s.price_usd <= 0 or s.price_fc <= 0:
+            return JsonResponse({'success': False, 'message': 'Prix invalides.'}, status=400)
+        s.save()
+        log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+                  module='settings_app', obj=s, ip_address=get_client_ip(request))
+        return JsonResponse({'success': True, 'message': f'Service « {s.name} » mis à jour.'})
+    except (Service.DoesNotExist, InvalidOperation, KeyError, ValueError):
+        return JsonResponse({'success': False, 'message': 'Données invalides.'}, status=400)

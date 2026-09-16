@@ -244,16 +244,21 @@
                 {% for s in services %}
                 <div class="px-4 py-2.5 flex items-center justify-between text-sm {% if not s.is_active %}opacity-40{% endif %}">
                     <div><b>{{ s.name }}</b><p class="text-xs text-gray-400">{{ s.price_usd }} $ / {{ s.price_fc }} FC</p></div>
-                    <button onclick="toggleService({{ s.id }})" class="text-xs px-2.5 py-1 rounded-lg {% if s.is_active %}bg-red-100 dark:bg-red-950 text-red-600{% else %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% endif %} font-semibold">
-                        {% if s.is_active %}Désactiver{% else %}Activer{% endif %}
-                    </button>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="openServiceModal({{ s.id }}, {name: '{{ s.name|escapejs }}', usd: '{{ s.price_usd }}', fc: '{{ s.price_fc }}'})" title="Modifier"
+                                class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 inline-flex items-center justify-center hover:scale-105">
+                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="toggleService({{ s.id }})" class="text-xs px-2.5 py-1 rounded-lg {% if s.is_active %}bg-red-100 dark:bg-red-950 text-red-600{% else %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% endif %} font-semibold">
+                            {% if s.is_active %}Désactiver{% else %}Activer{% endif %}
+                        </button>
+                    </div>
                 </div>
                 {% empty %}<p class="p-4 text-sm text-gray-400 text-center">Aucun service.</p>{% endfor %}
             </div>
         </div>
     </div>
 </section>
-
 
 <!-- ================= CODES D'INVITATION ================= -->
 <section id="tabcontent-codes" class="tab-content hidden">
@@ -296,6 +301,36 @@
         </div>
     </div>
 </section>
+
+<!-- ================= MODAL MODIFIER SERVICE ================= -->
+<div id="service-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeServiceModal()"></div>
+    <div class="relative w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+                <i data-lucide="pencil" class="w-5 h-5 text-brand-600"></i> Modifier le service
+            </h3>
+            <button onclick="closeServiceModal()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div class="space-y-2">
+            <input id="sm-name" type="text" placeholder="Nom du service *"
+                   class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <div class="grid grid-cols-2 gap-2">
+                <input id="sm-usd" type="number" step="0.01" placeholder="Prix ($) *"
+                       class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="sm-fc" type="number" placeholder="Prix (FC) *"
+                       class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            </div>
+        </div>
+        <div id="sm-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+        <button onclick="submitServiceEdit(this)"
+                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+            Enregistrer
+        </button>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -392,6 +427,50 @@ const saveService = (b) => post("{% url 'settings_app:service_create' %}", {
 
 const toggleService = (id) => post(`/configuration/api/service/${id}/basculer/`, {}, document.getElementById('sv-feedback'));
 
+const toggleCode = (id) => post(`/configuration/api/code/${id}/basculer/`, {}, document.getElementById('cd-feedback'));
+
+/* ================= MODIFIER SERVICE ================= */
+let serviceId = null;
+
+function openServiceModal(id, s) {
+    serviceId = id;
+    document.getElementById('sm-name').value = s.name;
+    document.getElementById('sm-usd').value = s.usd;
+    document.getElementById('sm-fc').value = s.fc;
+    document.getElementById('sm-feedback').classList.add('hidden');
+    document.getElementById('service-modal').classList.remove('hidden');
+}
+
+function closeServiceModal() {
+    document.getElementById('service-modal').classList.add('hidden');
+}
+
+async function submitServiceEdit(btn) {
+    btn.disabled = true;
+    const res = await fetch(`/configuration/api/service/${serviceId}/modifier/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({
+            name: document.getElementById('sm-name').value,
+            price_usd: document.getElementById('sm-usd').value,
+            price_fc: document.getElementById('sm-fc').value,
+        }),
+    });
+    const data = await res.json();
+    const fbEl = document.getElementById('sm-feedback');
+    fbEl.classList.remove('hidden', 'bg-red-100', 'dark:bg-red-950', 'text-red-700',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+    if (data.success) {
+        fbEl.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+        fbEl.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 800);
+    } else {
+        fbEl.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700');
+        fbEl.textContent = '✗ ' + data.message;
+    }
+    btn.disabled = false;
+}
+
 /* ================= CONVERSION AUTO $ ↔ FC ================= */
 const EX_RATE = parseFloat(document.getElementById('ex-rate').value || '2250');
 
@@ -410,16 +489,27 @@ document.querySelectorAll('input[id^="exf-"]').forEach(inp => {
     });
 });
 
-// Conversion aussi dans le formulaire d'ajout de service
+// Conversion dans le formulaire d'ajout de service
 document.getElementById('sv-usd').addEventListener('input', () => {
     const usd = parseFloat(c('sv-usd'));
-    if (usd > 0) document.getElementById('sv-fc').value = Math.round(usd * parseFloat(document.getElementById('sv-rate').value || '2250'));
+    if (usd > 0) document.getElementById('sv-fc').value = Math.round(usd * EX_RATE);
 });
 document.getElementById('sv-fc').addEventListener('input', () => {
     const fc = parseFloat(c('sv-fc'));
-    if (fc > 0) document.getElementById('sv-usd').value = (fc / parseFloat(document.getElementById('sv-rate').value || '2250')).toFixed(2);
+    if (fc > 0) document.getElementById('sv-usd').value = (fc / EX_RATE).toFixed(2);
 });
 
+// Conversion dans le modal de modification de service
+document.getElementById('sm-usd').addEventListener('input', () => {
+    const usd = parseFloat(document.getElementById('sm-usd').value);
+    if (usd > 0) document.getElementById('sm-fc').value = Math.round(usd * EX_RATE);
+});
+document.getElementById('sm-fc').addEventListener('input', () => {
+    const fc = parseFloat(document.getElementById('sm-fc').value);
+    if (fc > 0) document.getElementById('sm-usd').value = (fc / EX_RATE).toFixed(2);
+});
+
+/* ================= CODES D'INVITATION ================= */
 async function generateCode(btn) {
     btn.disabled = true;
     const res = await fetch("{% url 'settings_app:code_create' %}", {
@@ -432,21 +522,19 @@ async function generateCode(btn) {
         }),
     });
     const data = await res.json();
-    const fb = document.getElementById('cd-feedback');
+    const fbEl = document.getElementById('cd-feedback');
+    fbEl.classList.remove('hidden', 'bg-red-100', 'dark:bg-red-950', 'text-red-700',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
     if (data.success) {
-        fb.classList.remove('hidden');
-        fb.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
-        fb.textContent = '✓ ' + data.message;
+        fbEl.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+        fbEl.textContent = '✓ ' + data.message;
         document.getElementById('cd-code').textContent = data.code;
         document.getElementById('cd-result').classList.remove('hidden');
     } else {
-        fb.classList.remove('hidden');
-        fb.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
-        fb.textContent = '✗ ' + data.message;
+        fbEl.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700');
+        fbEl.textContent = '✗ ' + data.message;
     }
     btn.disabled = false;
 }
-
-const toggleCode = (id) => post(`/configuration/api/code/${id}/basculer/`, {}, document.getElementById('cd-feedback'));
 </script>
 {% endblock %}

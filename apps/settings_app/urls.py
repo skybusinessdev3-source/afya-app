@@ -22,4 +22,5 @@ urlpatterns = [
     path('api/service/<int:pk>/basculer/', views.service_toggle, name='service_toggle'),
     path('api/code/', views.code_create, name='code_create'),
     path('api/code/<int:pk>/basculer/', views.code_toggle, name='code_toggle'),
+    path('api/service/<int:pk>/modifier/', views.service_update, name='service_update'),
 ]
