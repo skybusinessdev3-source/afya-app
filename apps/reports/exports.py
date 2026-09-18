@@ -48,7 +48,9 @@ def build_pdf(vue, report):
     el.append(Paragraph('Ventilation des recettes', styles['h2']))
     rows = [['Module', 'Montant']] if vue != 'annee' else [['Mois', 'Patients', 'Séances', 'Perçus', 'Dépenses']]
     if vue != 'annee':
-        for label, key in [('Centre (séances/consultations)', 'centre'), ('Pharmacie', 'pharmacy'),
+        for label, key in [('Centre (séances/consultations)', 'centre'),
+                           ('Médecine générale', 'med_gen'), ('Médecine manuelle', 'med_man'),
+                           ('Pharmacie', 'pharmacy'),
                            ('Laboratoire', 'laboratory'), ('Soins à domicile', 'home_care')]:
             rows.append([label, report[key]])
         rows.append(['TOTAL PERÇUS', report['total_percus']])
@@ -134,7 +136,9 @@ def build_excel(vue, report):
         put(row, 1, 'Module', bold=True); put(row, 2, 'Montant', bold=True)
         style_header(ws.cell(row=row, column=1)); style_header(ws.cell(row=row, column=2))
         row += 1
-        for label, key in [('Centre (séances/consultations)', 'centre'), ('Pharmacie', 'pharmacy'),
+        for label, key in [('Centre (séances/consultations)', 'centre'),
+                           ('Médecine générale', 'med_gen'), ('Médecine manuelle', 'med_man'),
+                           ('Pharmacie', 'pharmacy'),
                            ('Laboratoire', 'laboratory'), ('Soins à domicile', 'home_care')]:
             put(row, 1, label); put(row, 2, report[key]); row += 1
         put(row, 1, 'TOTAL PERÇUS', bold=True, fill=XL_LIGHT)
