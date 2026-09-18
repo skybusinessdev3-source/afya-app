@@ -1,3 +1,6 @@
+# ====================================
+# Models Accounts
+# ====================================
 import secrets
 
 from django.contrib.auth.models import AbstractUser

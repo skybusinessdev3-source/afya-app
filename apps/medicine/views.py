@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
+from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment
 from apps.patients.models import Patient
 from apps.settings_app.models import MedicineSplitConfig
@@ -36,6 +37,8 @@ def _page(request, categories, title):
     return render(request, 'medicine/index.html', {
         'page_title': title,
         'month_label': today.strftime('%B %Y'),
+        'today': today,
+        'can_backdate': can_backdate(request.user),
         'categories': MedicineSplitConfig.Categories,
         'allowed': [c for c in MedicineSplitConfig.Categories.values if c in categories],
         'pcts': pcts,
@@ -70,10 +73,16 @@ def record_create(request):
         if amount <= 0:
             return JsonResponse({'success': False, 'message': "Montant invalide."}, status=400)
 
+        # Date d'opération (saisie différée — réservée aux responsables)
+        op_date, err = parse_operation_date(request.user, data.get('date'))
+        if err:
+            return JsonResponse({'success': False, 'message': err}, status=403)
+
         currency = data.get('currency', 'USD')
         record = MedicineRecord.objects.create(
             patient=patient,
             category=data['category'],
+            date=op_date,
             prescriber_name=data.get('prescriber_name', '').strip(),
             prestation_other=data.get('prestation_other', '').strip(),
             amount_original=amount,
@@ -92,6 +101,7 @@ def record_create(request):
                   + f" — {record.date:%d/%m/%Y}",
             amount_original=amount,
             currency_original=currency,
+            date=op_date,
             created_by=request.user,
         )
         record.invoice = invoice
@@ -105,6 +115,7 @@ def record_create(request):
                 invoice=invoice,
                 amount_original=amount_paid,
                 currency_original=data.get('paid_currency', currency),
+                date=op_date,
                 received_by=request.user,
             )
             log_event(user=request.user, action=AuditLog.Actions.CREATE,

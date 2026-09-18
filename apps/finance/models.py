@@ -75,7 +75,7 @@ class Invoice(TimeStampedModel, CurrencyAmountMixin):
 
     def save(self, *args, **kwargs):
         if not self.reference:
-            date_part = timezone.localdate().strftime('%Y%m%d')
+            date_part = (self.date or timezone.localdate()).strftime('%Y%m%d')
             count = Invoice.objects.filter(reference__startswith=f'FAC-{date_part}').count()
             self.reference = f'FAC-{date_part}-{count + 1:03d}'
         super().save(*args, **kwargs)

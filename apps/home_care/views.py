@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
+from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment
 from apps.patients.models import Patient
 from apps.settings_app.models import Staff
@@ -47,6 +48,8 @@ def home_care_page(request):
     context = {
         'page_title': 'Soins à domicile',
         'month_label': today.strftime('%B %Y'),
+        'today': today,
+        'can_backdate': can_backdate(request.user),
         'doctors': Staff.objects.filter(is_active=True, title='DOCTOR'),
         'records_data': records_data,
     }
@@ -96,6 +99,11 @@ def home_care_create(request):
         data = json.loads(request.body)
         mode = data.get('mode', 'nouveau')
 
+        # Date d'opération (saisie différée — réservée aux responsables)
+        op_date, err = parse_operation_date(request.user, data.get('date'))
+        if err:
+            return JsonResponse({'success': False, 'message': err}, status=403)
+
         # ============ MODE SUIVI ============
         if mode == 'session':
             service = HomeCareService.objects.select_for_update().get(pk=data['service_id'])
@@ -117,6 +125,7 @@ def home_care_create(request):
                     invoice=service.invoice,
                     amount_original=amount_paid,
                     currency_original=data.get('paid_currency', 'USD'),
+                    date=op_date,
                     received_by=request.user,
                 )
                 # Répartition sur le MONTANT PAYÉ (figée au taux du paiement)
@@ -143,6 +152,7 @@ def home_care_create(request):
             patient=patient,
             doctor_id=data.get('doctor_id') or None,
             sessions_prescribed=int(data.get('sessions_prescribed', 1) or 1),
+            date=op_date,
             observation=data.get('observation', ''),
             created_by=request.user,
         )
@@ -154,6 +164,7 @@ def home_care_create(request):
             label=f"Soins à domicile — {service.date:%d/%m/%Y}",
             amount_original=amount,
             currency_original=currency,
+            date=op_date,
             created_by=request.user,
         )
         service.invoice = invoice
@@ -167,6 +178,7 @@ def home_care_create(request):
                 invoice=invoice,
                 amount_original=amount_paid,
                 currency_original=data.get('paid_currency', currency),
+                date=op_date,
                 received_by=request.user,
             )
             split_home_care_payment(payment)  # répartition sur le montant payé

@@ -1,3 +1,7 @@
+# ====================================
+# Views Accounts
+# ====================================
+
 import json
 
 from django.contrib import messages

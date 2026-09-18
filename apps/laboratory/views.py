@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
+from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment
 from apps.patients.models import Patient
 from apps.settings_app.models import LabExam
@@ -33,6 +34,8 @@ def lab_page(request):
     context = {
         'page_title': 'Laboratoire',
         'month_label': today.strftime('%B %Y'),
+        'today': today,
+        'can_backdate': can_backdate(request.user),
         'exams': LabExam.objects.filter(is_active=True),
         'records': records,
         'totals': {
@@ -64,6 +67,11 @@ def lab_record_create(request):
         if not exams:
             return JsonResponse({'success': False, 'message': "Sélectionnez au moins un examen."}, status=400)
 
+        # Date d'opération (saisie différée — réservée aux responsables)
+        op_date, err = parse_operation_date(request.user, data.get('date'))
+        if err:
+            return JsonResponse({'success': False, 'message': err}, status=403)
+
         currency = data.get('currency', 'USD')
         # Total recalculé serveur (jamais celui envoyé par le navigateur)
         total_usd = sum(e.price_usd for e in exams)
@@ -78,6 +86,7 @@ def lab_record_create(request):
             label="Laboratoire — " + ", ".join(e.name for e in exams)[:200],
             amount_original=due,
             currency_original=currency,
+            date=op_date,
             created_by=request.user,
         )
         log_event(user=request.user, action=AuditLog.Actions.CREATE,
@@ -90,6 +99,7 @@ def lab_record_create(request):
                 invoice=invoice,
                 amount_original=amount_paid,
                 currency_original=data.get('paid_currency', currency),
+                date=op_date,
                 received_by=request.user,
             )
             log_event(user=request.user, action=AuditLog.Actions.CREATE,
@@ -102,6 +112,7 @@ def lab_record_create(request):
                 exam=exam,
                 prescriber_name=data.get('prescriber_name', '').strip(),
                 invoice=invoice,
+                date=op_date,
                 amount_original=exam.price_fc if currency == 'FC' else exam.price_usd,
                 currency_original=currency,
                 status=LaboratoryRecord.Status.DONE,

@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
+from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment
 from apps.patients.models import Patient
 from .models import PharmacyProduct, PharmacySale, StockMovement
@@ -28,6 +29,7 @@ def pharmacy_sale(request):
     context = {
         'page_title': 'Pharmacie',
         'today': today,
+        'can_backdate': can_backdate(request.user),
         'sales_today': sales_today,
         'sales_total_usd': sum(s.total_usd for s in sales_today),
         'sales_total_fc': sum(s.total_fc for s in sales_today),
@@ -72,6 +74,11 @@ def sale_create(request):
         if not items:
             return JsonResponse({'success': False, 'message': "Ajoutez au moins un produit."}, status=400)
 
+        # Date d'opération (saisie différée — réservée aux responsables)
+        op_date, err = parse_operation_date(request.user, data.get('date'))
+        if err:
+            return JsonResponse({'success': False, 'message': err}, status=403)
+
         # Vérification stock + récupération produits (serveur = autorité, §11)
         lines = []
         for it in items:
@@ -97,7 +104,8 @@ def sale_create(request):
         # Ventes + mouvements (créés par le modèle)
         for product, qty in lines:
             sale = PharmacySale.objects.create(
-                patient=patient, product=product, quantity=qty, sold_by=request.user)
+                patient=patient, product=product, quantity=qty, date=op_date,
+                sold_by=request.user)
             log_event(user=request.user, action=AuditLog.Actions.CREATE,
                       module='pharmacy', obj=sale, ip_address=get_client_ip(request))
 
@@ -106,6 +114,7 @@ def sale_create(request):
             label=f"Pharmacie — {len(lines)} article(s)",
             amount_original=due,
             currency_original=currency,
+            date=op_date,
             created_by=request.user,
         )
         log_event(user=request.user, action=AuditLog.Actions.CREATE,
@@ -117,6 +126,7 @@ def sale_create(request):
                 invoice=invoice,
                 amount_original=amount_paid,
                 currency_original=data.get('paid_currency', currency),
+                date=op_date,
                 received_by=request.user,
             )
             log_event(user=request.user, action=AuditLog.Actions.CREATE,

@@ -1,3 +1,7 @@
+# ====================================
+# Apps Accounts
+# ====================================
+
 from django.apps import AppConfig
 
 

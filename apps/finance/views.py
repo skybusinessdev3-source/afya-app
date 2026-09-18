@@ -7,6 +7,7 @@ from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
+from apps.core.utils import parse_operation_date
 from .models import Expense
 
 
@@ -24,12 +25,18 @@ def expense_create(request):
         if amount <= 0:
             return JsonResponse({'success': False, 'message': "Le montant doit être positif."}, status=400)
 
+        # Date d'opération (saisie différée — réservée aux responsables)
+        op_date, err = parse_operation_date(request.user, data.get('date'))
+        if err:
+            return JsonResponse({'success': False, 'message': err}, status=403)
+
         expense = Expense.objects.create(
             label=data.get('label', '').strip(),
             person_id=data.get('person_id') or None,
             person_other=data.get('person_other', '').strip(),
             amount_original=amount,
             currency_original=data.get('currency', 'USD'),
+            date=op_date,
             observation=data.get('observation', '').strip(),
             created_by=request.user,
         )

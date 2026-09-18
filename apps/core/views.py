@@ -8,6 +8,7 @@ from django.http import FileResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
+from apps.audit.models import AuditLog
 from apps.centre.models import Session
 from apps.finance.models import Expense, Payment, get_current_rate
 
@@ -65,9 +66,15 @@ def dashboard(request):
         chart_exp_fc.append(float(e.filter(currency_original='FC').aggregate(
             t=Sum('amount_original'))['t'] or 0))
 
+    # --- Journal d'activité : 30 derniers jours (transparence — qui a fait quoi, quand) ---
+    recent_activity = (AuditLog.objects
+                       .filter(created_at__date__gte=today - timedelta(days=30))
+                       .select_related('user')[:50])
+
     context = {
         'page_title': 'Tableau de bord',
         'today': today,
+        'recent_activity': recent_activity,
         'patients_today': patients_today,
         'sessions_today_count': sessions_today.count(),
         'rev_usd': rev_usd,

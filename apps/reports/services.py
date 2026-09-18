@@ -8,6 +8,7 @@ from apps.centre.models import Session
 from apps.finance.models import Expense, Payment
 from apps.laboratory.models import LaboratoryRecord
 from apps.home_care.models import HomeCareService
+from apps.medicine.models import MedicineRecord
 from apps.pharmacy.models import PharmacySale
 
 
@@ -37,6 +38,10 @@ def _categorize(payment):
         return 'laboratoire'
     if inv.home_care_services.exists():
         return 'domicile'
+    med = inv.medicine_records.first()
+    if med is not None:
+        # MANUAL / MANUAL_OTHER → médecine manuelle ; GENERAL_* → médecine générale
+        return 'medecine_manuelle' if med.category.startswith('MANUAL') else 'medecine_generale'
     if inv.label.startswith('Pharmacie'):
         return 'pharmacie'
     return 'centre'
@@ -78,6 +83,8 @@ def daily_report(d):
         'laboratory': _fmt(vent['laboratoire']),
         'home_care': _fmt(vent['domicile']),
         'centre': _fmt(vent['centre']),
+        'med_gen': _fmt(vent['medecine_generale']),
+        'med_man': _fmt(vent['medecine_manuelle']),
         'total_percus': _fmt(total),
         'expense_lines': [f"* {e.label} : _{e.amount_original} {e.currency_original}_" for e in expenses],
         'total_depenses': _fmt(exp_total),
@@ -97,6 +104,8 @@ def whatsapp_daily(r):
         *(r['patients_lines'] or ["—"]), "",
         "*VENTILATION DES RECETTES :*",
         f"*CENTRE (séances/consultations)* : _{r['centre']}_",
+        f"*MÉDECINE GÉNÉRALE* : _{r['med_gen']}_",
+        f"*MÉDECINE MANUELLE* : _{r['med_man']}_",
         f"*PHARMACIE* : _{r['pharmacy']}_",
         f"*LABORATOIRE* : _{r['laboratory']}_",
         f"*SOINS À DOMICILE* : _{r['home_care']}_",
@@ -137,6 +146,12 @@ def monthly_report(year, month):
         'laboratory': _fmt(vent['laboratoire']),
         'home_care': _fmt(vent['domicile']),
         'centre': _fmt(vent['centre']),
+        'med_gen': _fmt(vent['medecine_generale']),
+        'med_man': _fmt(vent['medecine_manuelle']),
+        'med_gen_count': MedicineRecord.objects.filter(
+            date__year=year, date__month=month, category__startswith='GENERAL').count(),
+        'med_man_count': MedicineRecord.objects.filter(
+            date__year=year, date__month=month, category__startswith='MANUAL').count(),
         'total_percus': _fmt(total),
         'expenses_count': expenses.count(),
         'total_depenses': _fmt(exp_total),
@@ -155,6 +170,8 @@ def whatsapp_monthly(r):
         f"*ACTIVITÉ* : {r['patients_count']} patients · {r['sessions_count']} séances · {r['jours_actifs']} jours d'activité", "",
         "*VENTILATION DES RECETTES :*",
         f"*CENTRE (séances/consultations)* : _{r['centre']}_",
+        f"*MÉDECINE GÉNÉRALE* : _{r['med_gen']}_ ({r['med_gen_count']} prestations)",
+        f"*MÉDECINE MANUELLE* : _{r['med_man']}_ ({r['med_man_count']} prestations)",
         f"*PHARMACIE* : _{r['pharmacy']}_ ({r['sales_count']} ventes)",
         f"*LABORATOIRE* : _{r['laboratory']}_ ({r['lab_count']} examens)",
         f"*SOINS À DOMICILE* : _{r['home_care']}_ ({r['home_care_count']} prestations)",

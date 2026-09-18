@@ -1,3 +1,7 @@
+# ====================================
+# Apps Appointments
+# ====================================
+
 from django.apps import AppConfig
 
 

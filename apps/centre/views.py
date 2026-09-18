@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
+from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Expense, Invoice, Payment
 from apps.patients.models import Patient
 from apps.settings_app.models import Company, Staff
@@ -36,6 +37,7 @@ def centre_day(request):
         'companies': Company.objects.filter(is_active=True),
         'expenses_today': Expense.objects.filter(date=today),
         'expenses_total_usd': sum(e.amount_usd for e in Expense.objects.filter(date=today)),
+        'can_backdate': can_backdate(request.user),
     }
     return render(request, 'centre/day.html', context)
 
@@ -82,6 +84,11 @@ def register_session(request):
         data = json.loads(request.body)
         patient = Patient.objects.get(pk=data['patient_id'], is_active=True)
 
+        # Date d'opération (saisie différée — réservée aux responsables)
+        op_date, err = parse_operation_date(request.user, data.get('date'))
+        if err:
+            return JsonResponse({'success': False, 'message': err}, status=403)
+
         # --- Séance ---
         session = Session.objects.create(
             patient=patient,
@@ -89,7 +96,7 @@ def register_session(request):
             motif=data.get('motif', 'KINE'),
             motif_other=data.get('motif_other', ''),
             professional_id=data.get('professional_id') or None,
-            date=timezone.localdate(),
+            date=op_date,
             status=Session.Status.DONE,
             notes=data.get('notes', ''),
         )
@@ -109,15 +116,16 @@ def register_session(request):
                 service = Service.objects.filter(pk=data['service_id']).first() if data.get('service_id') else None
                 if service:
                     due_amount, due_currency = service.price_usd, 'USD'
-                    label = f"{service.name} — {timezone.localdate():%d/%m/%Y}"
+                    label = f"{service.name} — {op_date:%d/%m/%Y}"
                 else:
                     due_amount, due_currency = amount, data.get('currency', 'USD')
-                    label = f"{session.get_motif_display()} — {timezone.localdate():%d/%m/%Y}"
+                    label = f"{session.get_motif_display()} — {op_date:%d/%m/%Y}"
                 invoice = Invoice.objects.create(
                     patient=patient,
                     label=label,
                     amount_original=due_amount,
                     currency_original=due_currency,
+                    date=op_date,
                     created_by=request.user,
                 )
                 log_event(user=request.user, action=AuditLog.Actions.CREATE,
@@ -128,6 +136,7 @@ def register_session(request):
                 invoice=invoice,
                 amount_original=amount,
                 currency_original=data.get('currency', 'USD'),
+                date=op_date,
                 received_by=request.user,
             )
             log_event(user=request.user, action=AuditLog.Actions.CREATE,
