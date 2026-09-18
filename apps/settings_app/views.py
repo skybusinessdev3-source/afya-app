@@ -155,7 +155,8 @@ def company_create(request):
         return JsonResponse({'success': False, 'message': 'Nom obligatoire.'}, status=400)
     c, created = Company.objects.get_or_create(
         name__iexact=name,
-        defaults={'email': data.get('email', ''), 'phone': data.get('phone', '')})
+        defaults={'name': name,  # sans ça, l'entreprise était créée SANS nom (bug)
+                  'email': data.get('email', ''), 'phone': data.get('phone', '')})
     if created:
         log_event(user=request.user, action=AuditLog.Actions.CREATE,
                   module='settings_app', obj=c, ip_address=get_client_ip(request))

@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST
 
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
+from apps.core.utils import can_backdate
 from apps.finance.models import Invoice, Payment
 from apps.settings_app.models import Company
 from .models import Patient
@@ -83,24 +84,27 @@ def patient_create(request):
 
 @login_required
 def patient_list(request):
-    """Liste des patients avec recherche."""
+    """Liste des patients avec recherche — ?archives=1 affiche les dossiers archivés (responsables)."""
+    show_archives = (request.GET.get('archives') == '1') and can_backdate(request.user)
     q = request.GET.get('q', '').strip()
+    base_qs = Patient.objects.filter(is_active=not show_archives)
     if q:
-        patients = Patient.objects.filter(
+        patients = base_qs.filter(
             Q(last_name__icontains=q) |
             Q(middle_name__icontains=q) |
             Q(first_name__icontains=q) |
             Q(phone__icontains=q),
-            is_active=True,
         )
     else:
-        patients = Patient.objects.filter(is_active=True)
+        patients = base_qs
 
     context = {
-        'page_title': 'Patients',
+        'page_title': 'Patients archivés' if show_archives else 'Patients',
         'patients': patients[:100],
         'q': q,
         'total': patients.count(),
+        'archives': show_archives,
+        'can_backdate': can_backdate(request.user),
     }
     return render(request, 'patients/list.html', context)
 
@@ -108,7 +112,7 @@ def patient_list(request):
 @login_required
 def patient_detail(request, pk):
     """Fiche complète : infos + séances + factures/paiements + totaux dus."""
-    patient = get_object_or_404(Patient, pk=pk, is_active=True)
+    patient = get_object_or_404(Patient, pk=pk)  # archivés inclus : dossier médical toujours consultable
 
     invoices = patient.invoices.prefetch_related('payments').exclude(
         status=Invoice.Status.CANCELLED)
@@ -128,6 +132,7 @@ def patient_detail(request, pk):
         'total_paid_usd': total_paid_usd,
         'total_remaining_usd': total_due_usd - total_paid_usd,
         'companies': Company.objects.filter(is_active=True),
+        'can_backdate': can_backdate(request.user),
     }
     return render(request, 'patients/detail.html', context)
 
@@ -153,6 +158,47 @@ def patient_update(request, pk):
         p.save()
         log_event(user=request.user, action=AuditLog.Actions.UPDATE,
                   module='patients', obj=p, ip_address=get_client_ip(request))
+
+        # Ajustement financier éventuel : « Montant à payer » rempli → NOUVELLE facture
+        amount = Decimal(str(data.get('amount_due', '0') or '0'))
+        if amount > 0:
+            invoice = Invoice.objects.create(
+                patient=p,
+                label="Frais — ajustement dossier patient",
+                amount_original=amount,
+                currency_original=data.get('currency', 'USD'),
+                created_by=request.user,
+            )
+            log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                      module='finance', obj=invoice, ip_address=get_client_ip(request))
+
         return JsonResponse({'success': True, 'message': f'{p.full_name} mis à jour.'})
     except (Patient.DoesNotExist, ValueError):
         return JsonResponse({'success': False, 'message': 'Données invalides.'}, status=400)
+
+@login_required
+@require_POST
+def patient_toggle_active(request, pk):
+    """Archive ou restaure un patient — réservé aux responsables, tracé au journal.
+
+    On ne supprime JAMAIS un patient (données médicales) : on archive.
+    Le dossier reste consultable et le patient peut être restauré à tout moment.
+    """
+    if not can_backdate(request.user):
+        return JsonResponse({'success': False,
+                             'message': "Seuls les responsables peuvent archiver un patient."},
+                            status=403)
+    try:
+        p = Patient.objects.get(pk=pk)
+    except Patient.DoesNotExist:
+        return JsonResponse({'success': False, 'message': "Patient introuvable."}, status=404)
+
+    p.is_active = not p.is_active
+    p.save(update_fields=['is_active', 'updated_at'])
+    action = AuditLog.Actions.UPDATE if p.is_active else AuditLog.Actions.DELETE
+    log_event(user=request.user, action=action, module='patients', obj=p,
+              new_value={'archived': not p.is_active},
+              ip_address=get_client_ip(request))
+    msg = (f"Patient « {p.full_name} » restauré." if p.is_active
+           else f"Patient « {p.full_name} » archivé (dossier conservé).")
+    return JsonResponse({'success': True, 'message': msg, 'is_active': p.is_active})

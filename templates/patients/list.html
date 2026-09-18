@@ -5,10 +5,19 @@
 <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up">
     <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
         <h3 class="font-bold flex items-center gap-2">
-            <i data-lucide="users" class="w-5 h-5 text-brand-600"></i> Liste des patients
+            <i data-lucide="users" class="w-5 h-5 text-brand-600"></i>
+            {% if archives %}🗄 Patients archivés{% else %}Liste des patients{% endif %}
             <span class="text-xs font-normal text-gray-400">({{ total }})</span>
         </h3>
+        {% if can_backdate %}
+        {% if archives %}
+        <a href="{% url 'patients:list' %}" class="text-xs px-3 py-1.5 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold whitespace-nowrap">← Patients actifs</a>
+        {% else %}
+        <a href="?archives=1" class="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-semibold whitespace-nowrap">🗄 Archives</a>
+        {% endif %}
+        {% endif %}
         <form method="get" class="w-full sm:w-72">
+            {% if archives %}<input type="hidden" name="archives" value="1">{% endif %}
             <input type="text" name="q" value="{{ q }}" placeholder="Rechercher (nom, téléphone)…"
                    class="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
         </form>

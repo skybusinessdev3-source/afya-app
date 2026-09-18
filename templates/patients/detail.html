@@ -5,12 +5,30 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
     <!-- Infos -->
     <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800 animate-fade-up">
-        <h3 class="font-bold mb-4 flex items-center gap-2">
-            <i data-lucide="user-round" class="w-5 h-5 text-brand-600"></i> Informations
-        </h3>
-                <button onclick="openEditPatient()" class="ml-auto text-xs px-3 py-1.5 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold flex items-center gap-1">
+        <div class="flex items-center gap-2 mb-4 flex-wrap">
+            <h3 class="font-bold flex items-center gap-2">
+                <i data-lucide="user-round" class="w-5 h-5 text-brand-600"></i> Informations
+            </h3>
+            {% if not p.is_active %}
+            <span class="text-xs px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold">🗄 Archivé</span>
+            {% endif %}
+            <span class="ml-auto flex items-center gap-2">
+                <button onclick="openEditPatient()" class="text-xs px-3 py-1.5 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold flex items-center gap-1">
                     <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Modifier
                 </button>
+                {% if can_backdate %}
+                {% if p.is_active %}
+                <button onclick="togglePatient()" class="text-xs px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 font-semibold flex items-center gap-1">
+                    <i data-lucide="archive" class="w-3.5 h-3.5"></i> Archiver
+                </button>
+                {% else %}
+                <button onclick="togglePatient()" class="text-xs px-3 py-1.5 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold flex items-center gap-1">
+                    <i data-lucide="archive-restore" class="w-3.5 h-3.5"></i> Restaurer
+                </button>
+                {% endif %}
+                {% endif %}
+            </span>
+        </div>
         <dl class="space-y-2 text-sm">
             <div class="flex justify-between"><dt class="text-gray-400">Nom</dt><dd class="font-semibold">{{ p.full_name }}</dd></div>
             <div class="flex justify-between"><dt class="text-gray-400">Sexe</dt><dd>{{ p.get_sex_display }}</dd></div>
@@ -114,6 +132,8 @@
                 <option value="M">Masculin</option><option value="F">Féminin</option>
             </select>
             <input id="ep-phone" type="tel" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" placeholder="Téléphone">
+            <input id="ep-birth-place" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" placeholder="Lieu de naissance">
+            <input id="ep-birth-date" type="date" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" title="Date de naissance">
             <select id="ep-day" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
                 <option value="ALL">Tous les jours</option><option value="EVEN">Jours pairs</option><option value="ODD">Jours impairs</option>
             </select>
@@ -122,6 +142,13 @@
                 {% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
             </select>
             <input id="ep-sessions" type="number" min="0" class="col-span-2 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" placeholder="Séances prescrites">
+            <div class="col-span-2 flex gap-3">
+                <input id="ep-amount" type="number" min="0" step="0.01" class="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" placeholder="Montant à payer (optionnel)">
+                <select id="ep-currency" class="w-28 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <option value="USD">USD</option><option value="FC">FC</option>
+                </select>
+            </div>
+            <p class="col-span-2 text-xs text-gray-400">💡 « Montant à payer » reste vide en principe — si rempli, une NOUVELLE facture est ajoutée au dossier.</p>
         </div>
         <div id="ep-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
         <button onclick="submitEditPatient(this)" class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">Enregistrer</button>
@@ -133,12 +160,16 @@
 <script>
 const PATIENT = { id: {{ p.id }}, last_name: '{{ p.last_name|escapejs }}', middle_name: '{{ p.middle_name|escapejs }}',
     first_name: '{{ p.first_name|escapejs }}', sex: '{{ p.sex }}', phone: '{{ p.phone|escapejs }}',
-    day_pattern: '{{ p.day_pattern }}', company_id: '{{ p.company_id|default:"" }}', sessions: {{ p.sessions_prescribed }} };
+    day_pattern: '{{ p.day_pattern }}', company_id: '{{ p.company_id|default:"" }}', sessions: {{ p.sessions_prescribed }},
+    birth_place: '{{ p.birth_place|escapejs }}', birth_date: '{{ p.birth_date|date:"Y-m-d" }}' };
+const PATIENT_ACTIVE = {{ p.is_active|yesno:"true,false" }};
 
 function openEditPatient() {
     ep('ep-last', PATIENT.last_name); ep('ep-middle', PATIENT.middle_name); ep('ep-first', PATIENT.first_name);
     document.getElementById('ep-sex').value = PATIENT.sex;
     ep('ep-phone', PATIENT.phone);
+    ep('ep-birth-place', PATIENT.birth_place); ep('ep-birth-date', PATIENT.birth_date);
+    ep('ep-amount', '');
     document.getElementById('ep-day').value = PATIENT.day_pattern;
     document.getElementById('ep-company').value = PATIENT.company_id;
     ep('ep-sessions', PATIENT.sessions);
@@ -158,6 +189,8 @@ async function submitEditPatient(btn) {
             day_pattern: document.getElementById('ep-day').value,
             company_id: document.getElementById('ep-company').value || null,
             sessions_prescribed: v('ep-sessions'),
+            birth_place: v('ep-birth-place'), birth_date: v('ep-birth-date') || null,
+            amount_due: v('ep-amount'), currency: document.getElementById('ep-currency').value,
         }),
     });
     const data = await res.json();
@@ -174,6 +207,19 @@ async function submitEditPatient(btn) {
     }
 }
 function v(id) { return document.getElementById(id).value; }
+
+async function togglePatient() {
+    const action = PATIENT_ACTIVE ? 'archiver' : 'restaurer';
+    if (!confirm(`Voulez-vous vraiment ${action} ce patient ?\n\nLe dossier médical est toujours conservé — il pourra être restauré à tout moment.`)) return;
+    const res = await fetch(`/patients/${PATIENT.id}/archiver/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+    });
+    const data = await res.json();
+    alert(data.message);
+    if (data.success) location.href = '/patients/';
+}
+
 function getCookie(name) {
     let c = null;
     document.cookie.split(';').forEach(x => { const [k, val] = x.trim().split('='); if (k === name) c = decodeURIComponent(val); });

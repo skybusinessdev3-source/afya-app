@@ -38,12 +38,11 @@ def _categorize(payment):
         return 'laboratoire'
     if inv.home_care_services.exists():
         return 'domicile'
-    med = inv.medicine_records.first()
-    if med is not None:
-        # MANUAL / MANUAL_OTHER → médecine manuelle ; GENERAL_* → médecine générale
-        return 'medecine_manuelle' if med.category.startswith('MANUAL') else 'medecine_generale'
     if inv.label.startswith('Pharmacie'):
         return 'pharmacie'
+    med = inv.medicine_records.first()
+    if med is not None:
+        return 'medecine_manuelle' if med.category.startswith('MANUAL') else 'medecine_generale'
     return 'centre'
 
 
@@ -148,11 +147,11 @@ def monthly_report(year, month):
         'centre': _fmt(vent['centre']),
         'med_gen': _fmt(vent['medecine_generale']),
         'med_man': _fmt(vent['medecine_manuelle']),
+        'total_percus': _fmt(total),
         'med_gen_count': MedicineRecord.objects.filter(
-            date__year=year, date__month=month, category__startswith='GENERAL').count(),
+            date__year=year, date__month=month).exclude(category__startswith='MANUAL').count(),
         'med_man_count': MedicineRecord.objects.filter(
             date__year=year, date__month=month, category__startswith='MANUAL').count(),
-        'total_percus': _fmt(total),
         'expenses_count': expenses.count(),
         'total_depenses': _fmt(exp_total),
         'solde': _fmt({'USD': total['USD'] - exp_total['USD'], 'FC': total['FC'] - exp_total['FC']}),
@@ -170,8 +169,8 @@ def whatsapp_monthly(r):
         f"*ACTIVITÉ* : {r['patients_count']} patients · {r['sessions_count']} séances · {r['jours_actifs']} jours d'activité", "",
         "*VENTILATION DES RECETTES :*",
         f"*CENTRE (séances/consultations)* : _{r['centre']}_",
-        f"*MÉDECINE GÉNÉRALE* : _{r['med_gen']}_ ({r['med_gen_count']} prestations)",
-        f"*MÉDECINE MANUELLE* : _{r['med_man']}_ ({r['med_man_count']} prestations)",
+        f"*MÉDECINE GÉNÉRALE* : _{r['med_gen']}_ ({r['med_gen_count']} actes)",
+        f"*MÉDECINE MANUELLE* : _{r['med_man']}_ ({r['med_man_count']} actes)",
         f"*PHARMACIE* : _{r['pharmacy']}_ ({r['sales_count']} ventes)",
         f"*LABORATOIRE* : _{r['laboratory']}_ ({r['lab_count']} examens)",
         f"*SOINS À DOMICILE* : _{r['home_care']}_ ({r['home_care_count']} prestations)",
