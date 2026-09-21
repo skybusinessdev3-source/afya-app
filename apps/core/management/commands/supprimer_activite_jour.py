@@ -77,7 +77,7 @@ class Command(BaseCommand):
         ventes = PharmacySale.objects.filter(patient=patient, date=d)
         factures = Invoice.objects.filter(patient=patient, date=d)
         paiements = Payment.objects.filter(invoice__in=factures)
-        rdv = Appointment.objects.filter(patient=patient, date=d)
+        rdv = Appointment.objects.filter(patient=patient, datetime__date=d)
 
         apercu = [
             ('Séances (centre)', sessions.count()),
