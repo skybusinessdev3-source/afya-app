@@ -97,10 +97,13 @@
     <!-- ===== Tableau mensuel ===== -->
     <div class="lg:col-span-2">
         <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
-            <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 flex-wrap">
                 <h3 class="font-bold flex items-center gap-2">
                     <i data-lucide="table" class="w-5 h-5 text-brand-600"></i> Répartition de {{ month_label }}
                 </h3>
+                <a href="{% url 'finance:debts' %}" class="ml-auto text-xs px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 font-semibold">
+                    💰 Voir les dettes
+                </a>
             </div>
             {% if prescriber_summary %}
             <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-wrap gap-2">
@@ -123,6 +126,8 @@
                             <th class="px-4 py-3 font-medium">Prescripteur</th>
                             <th class="px-4 py-3 font-medium">Examens</th>
                             <th class="px-4 py-3 font-medium text-right">Facturé</th>
+                            <th class="px-4 py-3 font-medium text-right">Payé</th>
+                            <th class="px-4 py-3 font-medium text-right">Reste</th>
                             <th class="px-4 py-3 font-medium text-right">Prescr. (20%)</th>
                             <th class="px-4 py-3 font-medium text-right">Équipe (60%)</th>
                             <th class="px-4 py-3 font-medium text-right">Centre (40%)</th>
@@ -143,12 +148,16 @@
                                 </span>
                             </td>
                             <td class="px-4 py-3 text-right font-semibold">{{ g.billed }} $</td>
+                            <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ g.paid }} $</td>
+                            <td class="px-4 py-3 text-right font-bold {% if g.debt > 0 %}text-red-500{% else %}text-gray-300 dark:text-gray-600{% endif %}">
+                                {% if g.debt > 0 %}{{ g.debt }} ${% else %}—{% endif %}
+                            </td>
                             <td class="px-4 py-3 text-right text-gray-400">{{ g.prescriber_share }} $</td>
                             <td class="px-4 py-3 text-right text-gray-400">{{ g.lab_share }} $</td>
                             <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ g.center_share }} $</td>
                         </tr>
                         <tr id="lab-d{{ forloop.counter }}" class="hidden bg-gray-50/70 dark:bg-gray-800/40">
-                            <td colspan="8" class="px-6 py-3">
+                            <td colspan="10" class="px-6 py-3">
                                 <p class="text-xs font-semibold text-gray-400 mb-1.5">Détail des examens — {{ g.patient }} ({{ g.date|date:"d/m/Y" }})</p>
                                 <div class="flex flex-wrap gap-1.5">
                                     {% for e in g.exams %}
@@ -160,7 +169,7 @@
                             </td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun examen ce mois-ci.</td></tr>
+                        <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">Aucun examen ce mois-ci.</td></tr>
                         {% endfor %}
                     </tbody>
                     {% if groups %}
@@ -168,6 +177,8 @@
                         <tr class="border-t-2 border-brand-200 dark:border-brand-900 font-bold bg-brand-50 dark:bg-brand-950/40">
                             <td colspan="4" class="px-4 py-3">Totaux du mois</td>
                             <td class="px-4 py-3 text-right">{{ totals.billed }} $</td>
+                            <td class="px-4 py-3 text-right">{{ totals.paid }} $</td>
+                            <td class="px-4 py-3 text-right {% if totals.debt > 0 %}text-red-500{% endif %}">{% if totals.debt > 0 %}{{ totals.debt }} ${% else %}—{% endif %}</td>
                             <td class="px-4 py-3 text-right">{{ totals.prescriber }} $</td>
                             <td class="px-4 py-3 text-right">{{ totals.lab_team }} $</td>
                             <td class="px-4 py-3 text-right">{{ totals.center }} $</td>

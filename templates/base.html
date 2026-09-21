@@ -240,6 +240,9 @@
             <a href="{% url 'reports:daily' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'reports' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
             </a>
+            <a href="{% url 'finance:debts' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'finance' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+                <i data-lucide="hand-coins" class="w-5 h-5"></i> Dettes
+            </a>
             <a href="{% url 'messaging:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'messaging' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
             </a>
@@ -412,6 +415,9 @@
         <p class="px-3 pt-4 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">Gestion</p>
         <a href="{% url 'reports:daily' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'reports' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
+        </a>
+        <a href="{% url 'finance:debts' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'finance' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+            <i data-lucide="hand-coins" class="w-5 h-5"></i> Dettes
         </a>
         <a href="{% url 'messaging:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'messaging' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie

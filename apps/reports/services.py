@@ -70,12 +70,41 @@ def daily_report(d):
         seances = f"_{s.patient.sessions_done}/{s.patient.sessions_prescribed}_"
         patients_lines.append(f"{i}. {s.patient.full_name} ({seances}{money})")
 
+    # --- Patients des AUTRES services (labo, médecine, domicile, pharmacie) ---
+    # Pas de séance au centre ce jour → ils doivent quand même apparaître au rapport.
+    seen = {s.patient_id for s in sessions}
+    extra = {}
+
+    def _add_extra(patient, tag):
+        if patient is None or patient.id in seen:
+            return
+        extra.setdefault(patient.id, {'patient': patient, 'tags': set()})['tags'].add(tag)
+
+    for r in LaboratoryRecord.objects.filter(date=d).select_related('patient'):
+        _add_extra(r.patient, 'Labo')
+    for r in MedicineRecord.objects.filter(date=d).select_related('patient'):
+        _add_extra(r.patient, 'Médecine')
+    for r in HomeCareService.objects.filter(date=d).select_related('patient'):
+        _add_extra(r.patient, 'Domicile')
+    for s in PharmacySale.objects.filter(date=d).select_related('patient'):
+        _add_extra(s.patient, 'Pharmacie')
+
+    i = len(patients_lines)
+    for pid, info in extra.items():
+        pays = [p for p in payments if p.invoice and p.invoice.patient_id == pid]
+        amounts = {'USD': sum(p.amount_original for p in pays if p.currency_original == 'USD'),
+                   'FC': sum(p.amount_original for p in pays if p.currency_original == 'FC')}
+        money = f" : {_fmt(amounts)}" if (amounts['USD'] or amounts['FC']) else ""
+        i += 1
+        patients_lines.append(f"{i}. {info['patient'].full_name} "
+                              f"({'/'.join(sorted(info['tags']))}{money})")
+
     exp_total = _sums_by_currency(expenses)
     total = _sums_by_currency(payments)
 
     return {
         'label': d.strftime('%d/%m/%Y'),
-        'patients_count': sessions.values('patient').distinct().count(),
+        'patients_count': len(seen) + len(extra),
         'sessions_count': sessions.count(),
         'patients_lines': patients_lines,
         'pharmacy': _fmt(vent['pharmacie']),

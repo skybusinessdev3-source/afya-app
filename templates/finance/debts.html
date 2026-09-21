@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block page_title %}Dettes{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Résumé -->
+    <div class="grid grid-cols-2 gap-3">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+            <p class="text-xs text-gray-400 font-medium">Factures en attente</p>
+            <p class="text-2xl font-bold">{{ invoices|length }}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-red-200 dark:border-red-900 animate-fade-up" style="animation-delay:.05s">
+            <p class="text-xs text-gray-400 font-medium">Total reste dû</p>
+            <p class="text-2xl font-bold text-red-500">{{ total_debt }} $</p>
+        </div>
+    </div>
+
+    <!-- Tableau des dettes -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+            <h3 class="font-bold flex items-center gap-2">
+                <i data-lucide="hand-coins" class="w-5 h-5 text-brand-600"></i> Dettes des patients
+            </h3>
+            <p class="text-xs text-gray-400 mt-1">Cliquez sur « Encaisser » quand le patient paie tout ou partie de son reste dû.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                        <th class="px-4 py-3 font-medium">Date</th>
+                        <th class="px-4 py-3 font-medium">Référence</th>
+                        <th class="px-4 py-3 font-medium">Patient</th>
+                        <th class="px-4 py-3 font-medium">Libellé</th>
+                        <th class="px-4 py-3 font-medium text-right">Dû</th>
+                        <th class="px-4 py-3 font-medium text-right">Payé</th>
+                        <th class="px-4 py-3 font-medium text-right">Reste</th>
+                        <th class="px-4 py-3 font-medium"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                    {% for inv in invoices %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                        <td class="px-4 py-3 whitespace-nowrap">{{ inv.date|date:"d/m/Y" }}</td>
+                        <td class="px-4 py-3 text-gray-400 text-xs">{{ inv.reference }}</td>
+                        <td class="px-4 py-3 font-medium">{{ inv.patient|default:"Client comptant" }}</td>
+                        <td class="px-4 py-3 text-gray-400">{{ inv.label|truncatewords:6 }}</td>
+                        <td class="px-4 py-3 text-right">{{ inv.amount_usd }} $</td>
+                        <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400">{{ inv.amount_paid_usd }} $</td>
+                        <td class="px-4 py-3 text-right font-bold text-red-500">{{ inv.balance_usd }} $</td>
+                        <td class="px-4 py-3 text-right">
+                            <button onclick="openPay({{ inv.id }}, '{{ inv.balance_usd }}', '{{ inv.patient|default:"Client comptant"|escapejs }}')"
+                                    class="text-xs px-3 py-1.5 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold whitespace-nowrap">
+                                Encaisser
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">🎉 Aucune dette — tout est payé !</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL ENCAISSER ================= -->
+<div id="pay-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closePay()"></div>
+    <div class="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-lg flex items-center gap-2">
+                <i data-lucide="hand-coins" class="w-5 h-5 text-brand-600"></i> Encaisser
+            </h3>
+            <button onclick="closePay()" class="w-9 h-9 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <p class="text-sm mb-3">Patient : <b id="dp-patient"></b> — reste dû : <b id="dp-reste" class="text-red-500"></b> $</p>
+        <div class="space-y-3">
+            <div class="flex gap-3">
+                <input id="dp-amount" type="number" min="0" step="0.01" placeholder="Montant reçu"
+                       class="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <select id="dp-currency" class="w-28 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <option value="USD">USD</option><option value="FC">FC</option>
+                </select>
+            </div>
+            {% if can_backdate %}
+            <div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900">
+                <label class="text-xs font-semibold text-amber-700 dark:text-amber-300">📅 Date du paiement (responsables)</label>
+                <input id="dp-date" type="date" value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}"
+                       class="mt-1 w-full px-3 py-2 rounded-lg border border-amber-300 dark:border-amber-800 bg-white dark:bg-gray-800 text-sm">
+            </div>
+            {% endif %}
+            <div id="dp-feedback" class="hidden px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+            <button onclick="submitPay(this)"
+                    class="w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+                Enregistrer le paiement
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let PAY_INVOICE = null;
+
+function openPay(id, reste, patient) {
+    PAY_INVOICE = id;
+    document.getElementById('dp-patient').textContent = patient;
+    document.getElementById('dp-reste').textContent = reste;
+    document.getElementById('dp-amount').value = reste;
+    document.getElementById('dp-feedback').classList.add('hidden');
+    document.getElementById('pay-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closePay() { document.getElementById('pay-modal').classList.add('hidden'); }
+
+async function submitPay(btn) {
+    const res = await fetch('/finance/api/dettes/payer/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({
+            invoice_id: PAY_INVOICE,
+            amount: document.getElementById('dp-amount').value,
+            currency: document.getElementById('dp-currency').value,
+            date: (document.getElementById('dp-date') || {}).value || '',
+        }),
+    });
+    const data = await res.json();
+    const fb = document.getElementById('dp-feedback');
+    fb.classList.remove('hidden', 'bg-red-100', 'dark:bg-red-950', 'text-red-700',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+    if (data.success) {
+        fb.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+        fb.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 900);
+    } else {
+        fb.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700');
+        fb.textContent = '✗ ' + data.message;
+    }
+}
+
+function getCookie(name) {
+    let c = null;
+    document.cookie.split(';').forEach(x => { const [k, v] = x.trim().split('='); if (k === name) c = decodeURIComponent(v); });
+    return c;
+}
+</script>
+{% endblock %}
