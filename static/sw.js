@@ -4,17 +4,27 @@
 // servir des données périmées.
 
 var OFFLINE_URL = '/static/offline.html';
+var OFFLINE_ASSETS = [OFFLINE_URL, '/static/img/offline-illustration.png'];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(
-    caches.open('afya-offline-v1').then(function (cache) {
-      return cache.add(OFFLINE_URL);
+    caches.open('afya-offline-v2').then(function (cache) {
+      return cache.addAll(OFFLINE_ASSETS);
     }).then(function () { return self.skipWaiting(); })
   );
 });
 
 self.addEventListener('activate', function (event) {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    // Nettoie les anciens caches hors-ligne
+    caches.keys().then(function (keys) {
+      return Promise.all(keys.map(function (k) {
+        if (k.indexOf('afya-offline-') === 0 && k !== 'afya-offline-v2') {
+          return caches.delete(k);
+        }
+      }));
+    }).then(function () { return self.clients.claim(); })
+  );
 });
 
 // Pages HTML : réseau d'abord, sinon page "Connexion perdue"
