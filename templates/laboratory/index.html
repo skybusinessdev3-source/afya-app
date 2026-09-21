@@ -102,14 +102,26 @@
                     <i data-lucide="table" class="w-5 h-5 text-brand-600"></i> Répartition de {{ month_label }}
                 </h3>
             </div>
+            {% if prescriber_summary %}
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-wrap gap-2">
+                {% for p in prescriber_summary %}
+                <div class="px-3 py-2 rounded-xl bg-brand-50 dark:bg-brand-950/40 border border-brand-100 dark:border-brand-900">
+                    <p class="text-xs font-semibold {% if p.name == '— Non renseigné —' %}text-red-500{% endif %}">{{ p.name }}</p>
+                    <p class="text-sm font-bold text-brand-600 dark:text-brand-400">{{ p.share }} $
+                        <span class="text-xs font-normal text-gray-400">· {{ p.exams }} examen(s) · {{ p.patients }} patient(s)</span>
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
                             <th class="px-4 py-3 font-medium">Date</th>
                             <th class="px-4 py-3 font-medium">Patient</th>
-                            <th class="px-4 py-3 font-medium">Examen</th>
                             <th class="px-4 py-3 font-medium">Prescripteur</th>
+                            <th class="px-4 py-3 font-medium">Examens</th>
                             <th class="px-4 py-3 font-medium text-right">Facturé</th>
                             <th class="px-4 py-3 font-medium text-right">Prescr. (20%)</th>
                             <th class="px-4 py-3 font-medium text-right">Équipe (60%)</th>
@@ -117,22 +129,41 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-                        {% for r in records %}
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
-                            <td class="px-4 py-3 whitespace-nowrap">{{ r.date|date:"d/m/Y" }}</td>
-                            <td class="px-4 py-3 font-medium">{{ r.patient }}</td>
-                            <td class="px-4 py-3">{{ r.exam.name }}</td>
-                            <td class="px-4 py-3 text-gray-400">{{ r.prescriber_name|default:"—" }}</td>
-                            <td class="px-4 py-3 text-right font-semibold">{{ r.amount_original }} {{ r.currency_original }}</td>
-                            <td class="px-4 py-3 text-right text-gray-400">{{ r.prescriber_amount_usd }} $</td>
-                            <td class="px-4 py-3 text-right text-gray-400">{{ r.lab_team_amount_usd }} $</td>
-                            <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ r.center_amount_usd }} $</td>
+                        {% for g in groups %}
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition cursor-pointer"
+                            onclick="toggleLabDetail('lab-d{{ forloop.counter }}')"
+                            title="Cliquez pour voir le détail des examens">
+                            <td class="px-4 py-3 whitespace-nowrap">{{ g.date|date:"d/m/Y" }}</td>
+                            <td class="px-4 py-3 font-medium">{{ g.patient }}</td>
+                            <td class="px-4 py-3 {% if g.prescriber == '— Non renseigné —' %}text-red-500 font-semibold{% else %}text-gray-400{% endif %}">{{ g.prescriber }}</td>
+                            <td class="px-4 py-3">
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold text-xs">
+                                    <i data-lucide="chevron-right" id="chev-lab-d{{ forloop.counter }}" class="w-3.5 h-3.5 transition-transform"></i>
+                                    {{ g.exams|length }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 text-right font-semibold">{{ g.billed }} $</td>
+                            <td class="px-4 py-3 text-right text-gray-400">{{ g.prescriber_share }} $</td>
+                            <td class="px-4 py-3 text-right text-gray-400">{{ g.lab_share }} $</td>
+                            <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ g.center_share }} $</td>
+                        </tr>
+                        <tr id="lab-d{{ forloop.counter }}" class="hidden bg-gray-50/70 dark:bg-gray-800/40">
+                            <td colspan="8" class="px-6 py-3">
+                                <p class="text-xs font-semibold text-gray-400 mb-1.5">Détail des examens — {{ g.patient }} ({{ g.date|date:"d/m/Y" }})</p>
+                                <div class="flex flex-wrap gap-1.5">
+                                    {% for e in g.exams %}
+                                    <span class="px-2 py-1 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs">
+                                        {{ e.name }} — <b>{{ e.amount }} {{ e.currency }}</b>
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun examen ce mois-ci.</td></tr>
                         {% endfor %}
                     </tbody>
-                    {% if records %}
+                    {% if groups %}
                     <tfoot>
                         <tr class="border-t-2 border-brand-200 dark:border-brand-900 font-bold bg-brand-50 dark:bg-brand-950/40">
                             <td colspan="4" class="px-4 py-3">Totaux du mois</td>
@@ -226,6 +257,14 @@
 
 {% block extra_js %}
 <script>
+/* ================= DÉTAIL EXAMENS (clic sur une ligne) ================= */
+function toggleLabDetail(id) {
+    const row = document.getElementById(id);
+    row.classList.toggle('hidden');
+    const chev = document.getElementById('chev-' + id);
+    if (chev) chev.style.transform = row.classList.contains('hidden') ? '' : 'rotate(90deg)';
+}
+
 /* ================= SÉLECTION PATIENT ================= */
 let labPatient = null, pTimer2;
 const pSearchInput = document.getElementById('l-patient-search');

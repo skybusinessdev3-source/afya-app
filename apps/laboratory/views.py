@@ -22,6 +22,12 @@ def get_client_ip(request):
     return x_forwarded.split(',')[0] if x_forwarded else request.META.get('REMOTE_ADDR')
 
 
+def _norm_prescriber(name):
+    """Clé de regroupement insensible à la casse, aux espaces et aux points
+    (« Dr.Mutamba Stany » = « Dr. Mutamba Stany »)."""
+    return ''.join(ch for ch in (name or '').lower() if ch.isalnum())
+
+
 @login_required
 def lab_page(request):
     today = timezone.localdate()
@@ -29,7 +35,47 @@ def lab_page(request):
 
     records = LaboratoryRecord.objects.filter(
         date__gte=month_start
-    ).select_related('patient', 'exam').order_by('-date')
+    ).select_related('patient', 'exam').order_by('-date', 'patient__last_name')
+
+    # --- Regroupement : 1 ligne par date + patient + prescripteur ---
+    # (le détail des examens s'affiche au clic dans le template)
+    groups = {}
+    for r in records:
+        key = (r.date, r.patient_id, _norm_prescriber(r.prescriber_name))
+        g = groups.get(key)
+        if g is None:
+            g = groups[key] = {
+                'date': r.date,
+                'patient': r.patient.full_name,
+                'prescriber': r.prescriber_name.strip() or '— Non renseigné —',
+                'exams': [],
+                'billed': Decimal('0'), 'prescriber_share': Decimal('0'),
+                'lab_share': Decimal('0'), 'center_share': Decimal('0'),
+            }
+        g['exams'].append({'name': r.exam.name,
+                           'amount': r.amount_original,
+                           'currency': r.currency_original})
+        g['billed'] += r.amount_usd
+        g['prescriber_share'] += r.prescriber_amount_usd
+        g['lab_share'] += r.lab_team_amount_usd
+        g['center_share'] += r.center_amount_usd
+    groups = sorted(groups.values(), key=lambda g: (g['date'], g['patient']), reverse=True)
+
+    # --- Résumé par prescripteur : sa part totale du mois en un coup d'œil ---
+    presc = {}
+    for r in records:
+        k = _norm_prescriber(r.prescriber_name)
+        p = presc.get(k)
+        if p is None:
+            p = presc[k] = {'name': r.prescriber_name.strip() or '— Non renseigné —',
+                            'share': Decimal('0'), 'exams': 0, 'patients': set()}
+        p['share'] += r.prescriber_amount_usd
+        p['exams'] += 1
+        p['patients'].add(r.patient_id)
+    prescriber_summary = sorted(
+        ({'name': p['name'], 'share': p['share'], 'exams': p['exams'],
+          'patients': len(p['patients'])} for p in presc.values()),
+        key=lambda p: p['share'], reverse=True)
 
     context = {
         'page_title': 'Laboratoire',
@@ -37,7 +83,8 @@ def lab_page(request):
         'today': today,
         'can_backdate': can_backdate(request.user),
         'exams': LabExam.objects.filter(is_active=True),
-        'records': records,
+        'groups': groups,
+        'prescriber_summary': prescriber_summary,
         'totals': {
             'billed': sum(r.amount_usd for r in records),
             'prescriber': sum(r.prescriber_amount_usd for r in records),
