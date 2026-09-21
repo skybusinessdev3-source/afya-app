@@ -15,6 +15,38 @@
         </div>
     </div>
 
+    <!-- ===== En attente de décision ===== -->
+    {% if en_attente %}
+    <div class="bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-300 dark:border-amber-800 animate-fade-up">
+        <div class="p-4 border-b border-amber-200 dark:border-amber-800">
+            <h3 class="font-bold flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                <i data-lucide="circle-help" class="w-5 h-5"></i> À confirmer — stocker ces créances ?
+                <span class="text-xs font-normal">({{ en_attente|length }} · {{ total_attente }} $)</span>
+            </h3>
+            <p class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                Ces soldes existent mais n'ont pas encore été confirmés. « Oui » → ils rejoignent les dettes ci-dessous ; « Non » → ignorés.
+            </p>
+        </div>
+        <div class="divide-y divide-amber-200/60 dark:divide-amber-800/40">
+            {% for inv in en_attente %}
+            <div class="px-4 py-3 flex items-center justify-between gap-3 text-sm">
+                <div class="min-w-0">
+                    <p class="font-semibold truncate">{{ inv.patient|default:"Client comptant" }}</p>
+                    <p class="text-xs text-gray-400 truncate">{{ inv.reference }} — {{ inv.label|truncatewords:6 }} — {{ inv.date|date:"d/m/Y" }}</p>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <b class="text-red-500">{{ inv.balance_usd }} $</b>
+                    <button onclick="decideCreance({{ inv.id }}, 'oui')"
+                            class="text-xs px-3 py-1.5 rounded-lg bg-brand-600 text-white font-semibold">Oui</button>
+                    <button onclick="decideCreance({{ inv.id }}, 'non')"
+                            class="text-xs px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-semibold">Non</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Tableau des dettes -->
     <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800">
@@ -139,6 +171,16 @@ async function submitPay(btn) {
         fb.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700');
         fb.textContent = '✗ ' + data.message;
     }
+}
+
+async function decideCreance(invoiceId, decision) {
+    const res = await fetch('/finance/api/creances/decider/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ invoice_id: invoiceId, decision: decision }),
+    });
+    const data = await res.json();
+    if (data.success) location.reload(); else alert(data.message);
 }
 
 function getCookie(name) {

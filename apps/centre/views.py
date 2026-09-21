@@ -13,6 +13,7 @@ from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Expense, Invoice, Payment
+from apps.finance.views import _creance_info
 from apps.patients.models import Patient
 from apps.settings_app.models import Company, Staff
 from .models import Service, Session
@@ -57,16 +58,23 @@ def patient_search(request):
         is_active=True,
     )[:8]
 
-    results = [{
-        'id': p.id,
-        'name': p.full_name,
-        'sex': p.get_sex_display(),
-        'phone': p.phone or '—',
-        'company': p.company.name if p.company else '—',
-        'sessions_done': p.sessions_done,
-        'sessions_prescribed': p.sessions_prescribed,
-        'sessions_remaining': p.sessions_remaining,
-    } for p in patients]
+    from apps.reports.services import _factures_centre, _seances_payees, _fmt_seances
+    fin = _factures_centre([p.id for p in patients])
+    results = []
+    for p in patients:
+        payees = _seances_payees(fin[p.id]['due'], fin[p.id]['paid'],
+                                 p.sessions_prescribed)
+        results.append({
+            'id': p.id,
+            'name': p.full_name,
+            'sex': p.get_sex_display(),
+            'phone': p.phone or '—',
+            'company': p.company.name if p.company else '—',
+            'sessions_done': p.sessions_done,
+            'sessions_prescribed': p.sessions_prescribed,
+            'sessions_remaining': p.sessions_remaining,
+            'sessions_paid': _fmt_seances(payees),   # avance (None si non calculable)
+        })
     return JsonResponse({'results': results})
 
 
@@ -147,6 +155,7 @@ def register_session(request):
             'message': f"Séance enregistrée pour {patient.full_name}",
             'sessions_done': patient.sessions_done,
             'sessions_remaining': patient.sessions_remaining,
+            'creance': _creance_info(invoice) if amount > 0 else None,
         })
 
     except (Patient.DoesNotExist, KeyError):

@@ -188,3 +188,77 @@ def build_excel(vue, report):
     wb.save(buf)
     buf.seek(0)
     return buf.read()
+
+# ================= ENTREPRISES (annexe mensuelle — ex : LTJ) =================
+
+def build_company_excel(report):
+    """Excel calqué sur « ANNEXE LTJ JUILLET 2026.xlsx » :
+    Noms | Pharmacie & Autres | Nbre Préscrit | Effectué | Restant | Cout | Date | Observation.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"ANNEXE {report['label']}"[:31]
+    ws.sheet_view.showGridLines = False
+
+    thin = Border(top=XL_THIN, bottom=XL_THIN, left=XL_THIN, right=XL_THIN)
+
+    def put(row, col, value, bold=False, fill=None, align='left'):
+        c = ws.cell(row=row, column=col, value=value)
+        c.font = Font(bold=bold)
+        c.border = thin
+        if fill:
+            c.fill = fill
+        c.alignment = Alignment(horizontal=align, vertical='center')
+        return c
+
+    company = report['company']
+    # Titre
+    ws.merge_cells('A1:H1')
+    c = put(1, 1, f"PATIENTS {company.name.upper()} {report['mois_nom']} {report['year']}",
+            bold=True, align='center')
+    c.font = Font(bold=True, size=14, color='075931')
+
+    # En-têtes
+    headers = ['Noms Patients', 'Pharmacie & Autres', 'Nbre Préscrit', 'Effectué',
+               'Restant', 'Cout', 'Date', 'Observation']
+    for i, h in enumerate(headers, 1):
+        put(2, i, h, bold=True, align='center')
+        ws.cell(row=2, column=i).font = Font(bold=True, color='FFFFFF')
+        ws.cell(row=2, column=i).fill = XL_GREEN
+
+    # Lignes patients
+    row = 3
+    for n, r in enumerate(report['rows'], 1):
+        put(row, 1, f"{n}. {r['patient'].full_name}")
+        put(row, 2, float(r['pharmacie']) if r['pharmacie'] else '', align='center')
+        put(row, 3, r['prescrit'], align='center')
+        put(row, 4, r['effectue'], align='center')
+        put(row, 5, r['restant'], align='center')
+        put(row, 6, r['cout_txt'], align='center')
+        put(row, 7, r['date_txt'], align='center')
+        put(row, 8, r['observation'])
+        row += 1
+
+    # TOTAL
+    tot = report['tot']
+    put(row, 1, 'TOTAL', bold=True, fill=XL_LIGHT)
+    put(row, 2, float(tot['pharmacie']), bold=True, fill=XL_LIGHT, align='center')
+    put(row, 3, tot['prescrit'], bold=True, fill=XL_LIGHT, align='center')
+    put(row, 4, tot['effectue'], bold=True, fill=XL_LIGHT, align='center')
+    put(row, 5, tot['restant'], bold=True, fill=XL_LIGHT, align='center')
+    put(row, 6, float(tot['cout']), bold=True, fill=XL_LIGHT, align='center')
+    put(row, 7, '', fill=XL_LIGHT); put(row, 8, '', fill=XL_LIGHT)
+    row += 1
+
+    # TOTAL GENERAL + clôture
+    put(row, 1, 'TOTAL  GENERAL', bold=True)
+    put(row, 6, float(report['total_general']), bold=True, align='center')
+    put(row, 8, report['cloture'], bold=True)
+
+    for i, w in enumerate([26, 17, 13, 10, 9, 14, 15, 30], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()

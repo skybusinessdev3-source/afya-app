@@ -12,6 +12,7 @@ from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.core.utils import can_backdate
 from apps.finance.models import Invoice, Payment
+from apps.finance.views import _creance_info
 from apps.settings_app.models import Company
 from .models import Patient
 
@@ -64,6 +65,7 @@ def patient_create(request):
         return JsonResponse({
             'success': True,
             'message': f"Patient « {patient.full_name} » enregistré.",
+            'creance': _creance_info(invoice) if amount > 0 else None,
             'patient': {
                 'id': patient.id,
                 'name': patient.full_name,
@@ -123,6 +125,12 @@ def patient_detail(request, pk):
         for p in i.payments.filter(status=Payment.Status.VALID)
     )
 
+    # Avance en séances (payées) — calculée sur les factures « centre »
+    from apps.reports.services import _factures_centre, _seances_payees, _fmt_seances
+    fin = _factures_centre([patient.id])[patient.id]
+    sessions_paid = _fmt_seances(_seances_payees(
+        fin['due'], fin['paid'], patient.sessions_prescribed))
+
     context = {
         'page_title': patient.full_name,
         'p': patient,
@@ -131,6 +139,7 @@ def patient_detail(request, pk):
         'total_due_usd': total_due_usd,
         'total_paid_usd': total_paid_usd,
         'total_remaining_usd': total_due_usd - total_paid_usd,
+        'sessions_paid': sessions_paid,
         'companies': Company.objects.filter(is_active=True),
         'can_backdate': can_backdate(request.user),
     }
@@ -172,7 +181,8 @@ def patient_update(request, pk):
             log_event(user=request.user, action=AuditLog.Actions.CREATE,
                       module='finance', obj=invoice, ip_address=get_client_ip(request))
 
-        return JsonResponse({'success': True, 'message': f'{p.full_name} mis à jour.'})
+        return JsonResponse({'success': True, 'message': f'{p.full_name} mis à jour.',
+                             'creance': _creance_info(invoice) if amount > 0 else None})
     except (Patient.DoesNotExist, ValueError):
         return JsonResponse({'success': False, 'message': 'Données invalides.'}, status=400)
 

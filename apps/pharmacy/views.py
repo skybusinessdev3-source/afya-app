@@ -13,6 +13,7 @@ from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment
+from apps.finance.views import _creance_info
 from apps.patients.models import Patient
 from .models import PharmacyProduct, PharmacySale, StockMovement
 
@@ -138,6 +139,7 @@ def sale_create(request):
                        + (f" pour {patient.full_name}" if patient else " (client comptant)"),
             'total_usd': float(total_usd),
             'total_fc': float(total_fc),
+            'creance': _creance_info(invoice),
         })
 
     except PharmacyProduct.DoesNotExist:

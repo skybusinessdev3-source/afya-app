@@ -40,6 +40,10 @@
                 <i data-lucide="clipboard-copy" class="w-4 h-4"></i> Copier pour WhatsApp
             </button>
             <p id="copy-feedback" class="hidden mt-2 text-center text-xs text-brand-600 dark:text-brand-400 font-semibold">✓ Copié ! Collez dans WhatsApp.</p>
+            <a href="{% url 'reports:entreprises' %}"
+               class="mt-2 w-full py-3 rounded-xl border-2 border-amber-500 text-amber-600 dark:text-amber-400 font-semibold flex items-center justify-center gap-2 hover:bg-amber-50 dark:hover:bg-amber-950/40">
+                <i data-lucide="building-2" class="w-4 h-4"></i> Rapports entreprises (LTJ…)
+            </a>
             <div class="grid grid-cols-2 gap-2 mt-2">
                 <a href="{% url 'reports:export_pdf' %}?vue={{ vue }}&periode={{ periode }}"
                    class="py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold text-sm flex items-center justify-center gap-2 active:scale-[.98]">

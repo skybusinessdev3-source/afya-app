@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+{% block page_title %}Opérations{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <div class="bg-red-50 dark:bg-red-950/30 rounded-2xl border border-red-300 dark:border-red-900 p-4 animate-fade-up">
+        <h3 class="font-bold flex items-center gap-2 text-red-700 dark:text-red-300">
+            <i data-lucide="shield-alert" class="w-5 h-5"></i> Zone administrateur — annulations & corrections
+        </h3>
+        <p class="text-xs text-red-600 dark:text-red-400 mt-1">
+            Cette page n'est visible que par vous (super-utilisateur). Chaque annulation ou modification
+            demande un motif et est tracée dans le journal d'activité. Les montants, stocks et rapports
+            sont recalculés automatiquement.
+        </p>
+    </div>
+
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.05s">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <h3 class="font-bold flex items-center gap-2">
+                <i data-lucide="history" class="w-5 h-5 text-brand-600"></i> Opérations récentes
+            </h3>
+            <input type="text" id="op-filter" placeholder="Filtrer (patient, libellé, référence)…" oninput="filterOps()"
+                   class="w-full sm:w-72 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="ops-table">
+                <thead>
+                    <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                        <th class="px-4 py-3 font-medium">Date</th>
+                        <th class="px-4 py-3 font-medium">Opération</th>
+                        <th class="px-4 py-3 font-medium">Montant</th>
+                        <th class="px-4 py-3 font-medium">Par</th>
+                        <th class="px-4 py-3 font-medium">Statut</th>
+                        <th class="px-4 py-3 font-medium text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                    {% for op in ops %}
+                    <tr class="{% if op.inactive %}opacity-40 line-through{% endif %} hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-400">{{ op.date|date:"d/m/Y" }}</td>
+                        <td class="px-4 py-3">{{ op.desc }}</td>
+                        <td class="px-4 py-3 font-semibold whitespace-nowrap">{{ op.amount }}</td>
+                        <td class="px-4 py-3 text-gray-400">{{ op.by }}</td>
+                        <td class="px-4 py-3 text-gray-400">{{ op.status }}</td>
+                        <td class="px-4 py-3 text-right whitespace-nowrap">
+                            {% if op.editable %}
+                            <button onclick="openEdit('{{ op.type }}', {{ op.id }})"
+                                    class="text-xs px-3 py-1.5 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-semibold">
+                                Modifier
+                            </button>
+                            {% endif %}
+                            {% if op.cancelable %}
+                            <button onclick="openCancel('{{ op.type }}', {{ op.id }})"
+                                    class="text-xs px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 font-semibold">
+                                Annuler
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Aucune opération.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL ANNULER ================= -->
+<div id="cancel-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeCancel()"></div>
+    <div class="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-red-300 dark:border-red-800 p-6 animate-pop-in">
+        <h3 class="font-bold text-lg flex items-center gap-2 mb-3">
+            <i data-lucide="trash-2" class="w-5 h-5 text-red-500"></i> Annuler cette opération
+        </h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+            ⚠️ Action irréversible. Les montants, stocks et rapports seront recalculés.
+        </p>
+        <input id="oc-reason" type="text" placeholder="Motif de l'annulation *"
+               class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+        <div id="oc-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+        <button onclick="submitCancel(this)"
+                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-700 text-white font-semibold active:scale-[.98]">
+            Confirmer l'annulation
+        </button>
+    </div>
+</div>
+
+<!-- ================= MODAL MODIFIER ================= -->
+<div id="edit-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeEdit()"></div>
+    <div class="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-6 animate-pop-in">
+        <h3 class="font-bold text-lg flex items-center gap-2 mb-3">
+            <i data-lucide="pencil" class="w-5 h-5 text-brand-600"></i> Modifier — <span id="oe-title"></span>
+        </h3>
+        <div class="space-y-3">
+            <!-- paiement / dépense -->
+            <div id="oe-money" class="hidden space-y-3">
+                <input id="oe-label" type="text" placeholder="Libellé (dépense)"
+                       class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <div class="flex gap-3">
+                    <input id="oe-amount" type="number" min="0" step="0.01" placeholder="Montant"
+                           class="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <select id="oe-currency" class="w-28 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                        <option value="">— devise —</option><option value="USD">USD</option><option value="FC">FC</option>
+                    </select>
+                </div>
+                <input id="oe-date" type="date" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <select id="oe-method" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <option value="">— méthode (paiement) —</option>
+                    <option value="CASH">Espèces</option>
+                    <option value="MOBILE_MONEY">Mobile Money</option>
+                    <option value="BANK">Virement bancaire</option>
+                </select>
+            </div>
+            <!-- prescripteur (labo / médecine) -->
+            <input id="oe-prescriber" type="text" placeholder="Nom du prescripteur"
+                   class="hidden w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+        </div>
+        <div id="oe-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
+        <button onclick="submitEdit(this)"
+                class="mt-4 w-full py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+            Enregistrer la modification
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let OP = { type: null, id: null };
+
+function filterOps() {
+    const q = document.getElementById('op-filter').value.toLowerCase();
+    document.querySelectorAll('#ops-table tbody tr').forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+
+/* ---------- Annuler ---------- */
+function openCancel(type, id) {
+    OP = { type, id };
+    document.getElementById('oc-reason').value = '';
+    document.getElementById('oc-feedback').classList.add('hidden');
+    document.getElementById('cancel-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closeCancel() { document.getElementById('cancel-modal').classList.add('hidden'); }
+
+async function submitCancel(btn) {
+    const reason = document.getElementById('oc-reason').value.trim();
+    const fb = document.getElementById('oc-feedback');
+    if (!reason) { alert('Le motif est obligatoire.'); return; }
+    btn.disabled = true;
+    const res = await fetch("{% url 'finance:operation_cancel' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ type: OP.type, id: OP.id, reason }),
+    });
+    const data = await res.json();
+    fb.classList.remove('hidden', 'bg-red-100', 'dark:bg-red-950', 'text-red-700',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+    if (data.success) {
+        fb.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+        fb.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 900);
+    } else {
+        fb.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700');
+        fb.textContent = '✗ ' + data.message;
+        btn.disabled = false;
+    }
+}
+
+/* ---------- Modifier ---------- */
+function openEdit(type, id) {
+    OP = { type, id };
+    const money = (type === 'payment' || type === 'expense');
+    document.getElementById('oe-title').textContent =
+        { payment: 'Paiement', expense: 'Dépense', lab: 'Examen (prescripteur)', med: 'Acte médecine (prescripteur)' }[type] || type;
+    document.getElementById('oe-money').classList.toggle('hidden', !money);
+    document.getElementById('oe-label').classList.toggle('hidden', type !== 'expense');
+    document.getElementById('oe-method').classList.toggle('hidden', type !== 'payment');
+    document.getElementById('oe-prescriber').classList.toggle('hidden', !(type === 'lab' || type === 'med'));
+    ['oe-label','oe-amount','oe-prescriber'].forEach(i => document.getElementById(i).value = '');
+    document.getElementById('oe-currency').value = '';
+    document.getElementById('oe-method').value = '';
+    document.getElementById('oe-date').value = '';
+    document.getElementById('oe-feedback').classList.add('hidden');
+    document.getElementById('edit-modal').classList.remove('hidden');
+    lucide.createIcons();
+}
+function closeEdit() { document.getElementById('edit-modal').classList.add('hidden'); }
+
+async function submitEdit(btn) {
+    btn.disabled = true;
+    const fields = {};
+    if (OP.type === 'payment' || OP.type === 'expense') {
+        if (document.getElementById('oe-amount').value) fields.amount = document.getElementById('oe-amount').value;
+        if (document.getElementById('oe-currency').value) fields.currency = document.getElementById('oe-currency').value;
+        if (document.getElementById('oe-date').value) fields.date = document.getElementById('oe-date').value;
+    }
+    if (OP.type === 'expense' && document.getElementById('oe-label').value.trim())
+        fields.label = document.getElementById('oe-label').value.trim();
+    if (OP.type === 'payment' && document.getElementById('oe-method').value)
+        fields.method = document.getElementById('oe-method').value;
+    if ((OP.type === 'lab' || OP.type === 'med'))
+        fields.prescriber_name = document.getElementById('oe-prescriber').value;
+
+    const res = await fetch("{% url 'finance:operation_update' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ type: OP.type, id: OP.id, fields }),
+    });
+    const data = await res.json();
+    const fb = document.getElementById('oe-feedback');
+    fb.classList.remove('hidden', 'bg-red-100', 'dark:bg-red-950', 'text-red-700',
+        'bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+    if (data.success) {
+        fb.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
+        fb.textContent = '✓ ' + data.message;
+        setTimeout(() => location.reload(), 900);
+    } else {
+        fb.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700');
+        fb.textContent = '✗ ' + data.message;
+        btn.disabled = false;
+    }
+}
+
+function getCookie(name) {
+    let c = null;
+    document.cookie.split(';').forEach(x => { const [k, v] = x.trim().split('='); if (k === name) c = decodeURIComponent(v); });
+    return c;
+}
+</script>
+{% endblock %}

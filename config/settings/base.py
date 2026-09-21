@@ -82,6 +82,12 @@ TIME_ZONE = 'Africa/Kinshasa'
 USE_I18N = True
 USE_TZ = True
 
+# ─── Web Push (VAPID) — alarmes même application fermée ──
+# Les clés sont dans .env (JAMAIS dans Git). Voir déploiement : VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY.
+VAPID_PUBLIC_KEY = env('VAPID_PUBLIC_KEY', default='')
+VAPID_PRIVATE_KEY = env('VAPID_PRIVATE_KEY', default='')
+VAPID_ADMIN_EMAIL = env('VAPID_ADMIN_EMAIL', default='admin@afya-app-crfmk.org')
+
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = 'media/'

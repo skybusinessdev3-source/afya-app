@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hors ligne — AFYA APP</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #faf8f5;
+            color: #3d3833;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+        .card {
+            background: #ffffff;
+            border: 1px solid #ece7e0;
+            border-radius: 1.25rem;
+            box-shadow: 0 10px 40px rgba(61, 56, 51, 0.08);
+            padding: 3rem 2.5rem;
+            max-width: 26rem;
+            width: 100%;
+            text-align: center;
+        }
+        .icon-wrap {
+            width: 5rem; height: 5rem;
+            margin: 0 auto 1.5rem;
+            background: #fdf3ec;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .icon-wrap svg { width: 2.5rem; height: 2.5rem; stroke: #c2703e; }
+        h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.75rem; color: #2e2a26; }
+        p { color: #7d756c; line-height: 1.6; margin-bottom: 1.75rem; font-size: 0.95rem; }
+        .btn {
+            display: inline-block;
+            background: #c2703e;
+            color: #fff;
+            border: none;
+            border-radius: 0.65rem;
+            padding: 0.8rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            text-decoration: none;
+        }
+        .btn:hover { background: #a85f33; }
+        .auto { margin-top: 1.25rem; font-size: 0.8rem; color: #a89f94; }
+        .brand { margin-top: 2rem; font-size: 0.75rem; letter-spacing: 0.15em; color: #c4bab0; text-transform: uppercase; }
+        #dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: #d97b6c; margin-right: 0.4rem; vertical-align: middle; }
+        #dot.online { background: #6f9f7a; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12h4l3-8 4 16 3-8h4"/>
+            </svg>
+        </div>
+        <h1>Connexion perdue</h1>
+        <p>AFYA APP n'arrive pas à joindre le serveur.<br>
+        Vérifie ta connexion internet (ou que le serveur est bien démarré), puis réessaie.</p>
+        <button class="btn" onclick="window.location.reload()">Réessayer</button>
+        <div class="auto"><span id="dot"></span><span id="status">Hors ligne — nouvelle tentative automatique dans <b id="count">10</b> s…</span></div>
+        <div class="brand">AFYA APP — CRF-MK Kinshasa</div>
+    </div>
+    <script>
+        // Rechargement automatique dès que la connexion revient
+        window.addEventListener('online', function () {
+            document.getElementById('dot').classList.add('online');
+            document.getElementById('status').textContent = 'Connexion rétablie — rechargement…';
+            setTimeout(function () { window.location.reload(); }, 600);
+        });
+        // Compte à rebours + nouvelle tentative toutes les 10 s
+        var n = 10, el = document.getElementById('count');
+        setInterval(function () {
+            n--;
+            if (n <= 0) { window.location.reload(); return; }
+            el.textContent = n;
+        }, 1000);
+    </script>
+</body>
+</html>

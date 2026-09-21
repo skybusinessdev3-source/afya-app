@@ -119,10 +119,21 @@
             <div class="divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto">
                 {% for c in companies %}
                 <div class="px-4 py-2.5 flex items-center justify-between text-sm {% if not c.is_active %}opacity-40{% endif %}">
-                    <div><b>{{ c.name }}</b><p class="text-xs text-gray-400">{{ c.phone|default:"—" }} · {{ c.email|default:"—" }}</p></div>
-                    <button onclick="toggleCompany({{ c.id }})" class="text-xs px-2.5 py-1 rounded-lg {% if c.is_active %}bg-red-100 dark:bg-red-950 text-red-600{% else %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% endif %} font-semibold">
-                        {% if c.is_active %}Désactiver{% else %}Activer{% endif %}
-                    </button>
+                    <div><b>{{ c.name }}</b>
+                        <p class="text-xs text-gray-400">{{ c.phone|default:"—" }} · {{ c.email|default:"—" }}</p>
+                        {% if c.facturation_entreprise %}
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-bold">CRÉANCES ENTREPRISE</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="toggleCompanyCredit({{ c.id }})" title="Facturer à l'entreprise (créances — ex : LTJ)"
+                                class="text-xs px-2.5 py-1 rounded-lg {% if c.facturation_entreprise %}bg-amber-500 text-white{% else %}bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400{% endif %} font-semibold">
+                            Créances
+                        </button>
+                        <button onclick="toggleCompany({{ c.id }})" class="text-xs px-2.5 py-1 rounded-lg {% if c.is_active %}bg-red-100 dark:bg-red-950 text-red-600{% else %}bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300{% endif %} font-semibold">
+                            {% if c.is_active %}Désactiver{% else %}Activer{% endif %}
+                        </button>
+                    </div>
                 </div>
                 {% empty %}<p class="p-4 text-sm text-gray-400 text-center">Aucune entreprise.</p>{% endfor %}
             </div>
@@ -400,6 +411,8 @@ const saveCompany = (b) => post("{% url 'settings_app:company_create' %}", {
 }, document.getElementById('co-feedback'));
 
 const toggleCompany = (id) => post(`/configuration/api/entreprise/${id}/basculer/`, {}, document.getElementById('co-feedback'));
+
+const toggleCompanyCredit = (id) => post(`/configuration/api/entreprise/${id}/creances/`, {}, document.getElementById('co-feedback'));
 
 const saveLabSplit = (b) => post("{% url 'settings_app:lab_split_create' %}", {
     prescriber_pct: c('lb-prescr'), lab_team_pct: c('lb-lab'), center_pct: c('lb-center'),

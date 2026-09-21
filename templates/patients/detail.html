@@ -42,6 +42,12 @@
                     <span class="text-xs font-normal text-gray-400">({{ p.sessions_remaining }} restantes)</span>
                 </dd>
             </div>
+            {% if sessions_paid %}
+            <div class="flex justify-between">
+                <dt class="text-gray-400">Séances payées (avance)</dt>
+                <dd class="font-bold">{{ sessions_paid }}</dd>
+            </div>
+            {% endif %}
             <div class="flex justify-between pt-2 border-t border-gray-200 dark:border-gray-800">
                 <dt class="text-gray-400">Montant dû</dt>
                 <dd class="font-semibold">{{ total_due_usd }} $</dd>
@@ -200,6 +206,7 @@ async function submitEditPatient(btn) {
     if (data.success) {
         fb.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700');
         fb.textContent = '✓ ' + data.message;
+        if (typeof askCreance === 'function' && askCreance(data)) return;  // modal « stocker la créance ? »
         setTimeout(() => location.reload(), 800);
     } else {
         fb.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700');

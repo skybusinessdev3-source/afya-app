@@ -12,6 +12,7 @@ from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment
+from apps.finance.views import _creance_info
 from apps.patients.models import Patient
 from apps.settings_app.models import LabExam
 from .models import LaboratoryRecord
@@ -174,6 +175,7 @@ def lab_record_create(request):
             'message': f"{len(exams)} examen(s) enregistré(s) pour {patient.full_name}.",
             'total_usd': float(total_usd),
             'total_fc': float(total_fc),
+            'creance': _creance_info(invoice),
         })
 
     except (Patient.DoesNotExist, LabExam.DoesNotExist):

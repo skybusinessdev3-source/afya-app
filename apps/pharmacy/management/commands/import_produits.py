@@ -108,4 +108,4 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"\nTerminé : {crees} produits créés, {existants} déjà existants, "
             f"{ignores} lignes vides ignorées, {erreurs} erreurs. Taux FC : {rate}."
-        ))s
+        ))

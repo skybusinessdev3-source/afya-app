@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block page_title %}Rapports entreprises{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+    <!-- ===== Choix entreprise + mois ===== -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+        <h3 class="font-bold mb-3 flex items-center gap-2">
+            <i data-lucide="building-2" class="w-5 h-5 text-brand-600"></i> Rapport mensuel entreprise
+        </h3>
+        <form method="get" class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <select name="entreprise" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <option value="">— Entreprise —</option>
+                {% for c in companies %}
+                <option value="{{ c.id }}" {% if company and c.id == company.id %}selected{% endif %}>
+                    {{ c.name }}{% if c.facturation_entreprise %} (créances){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            <input type="month" name="periode" value="{{ periode }}"
+                   class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <button type="submit" class="py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+                Générer
+            </button>
+        </form>
+        <p class="text-xs text-gray-400 mt-2">
+            💡 Les entreprises marquées « (créances) » (ex : LTJ) ne passent JAMAIS en dettes patient :
+            leurs impayés sont récapitulés ici. La case se coche dans Configuration → Entreprises.
+        </p>
+    </div>
+
+    {% if report %}
+    <!-- ===== Résumé ===== -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+            <p class="text-xs text-gray-400 font-medium">Patients ce mois</p>
+            <p class="text-2xl font-bold">{{ report.rows|length }}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-amber-200 dark:border-amber-900 animate-fade-up" style="animation-delay:.05s">
+            <p class="text-xs text-gray-400 font-medium">Total à facturer ({{ report.label }})</p>
+            <p class="text-2xl font-bold text-amber-600 dark:text-amber-400">{{ report.total_general }} $</p>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-red-200 dark:border-red-900 animate-fade-up" style="animation-delay:.1s">
+            <p class="text-xs text-gray-400 font-medium">Créance totale (tous mois)</p>
+            <p class="text-2xl font-bold text-red-500">{{ report.creance_usd }} $</p>
+        </div>
+    </div>
+
+    <!-- ===== Tableau format annexe ===== -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.15s">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3 flex-wrap">
+            <h3 class="font-bold flex items-center gap-2">
+                <i data-lucide="table" class="w-5 h-5 text-brand-600"></i>
+                PATIENTS {{ company.name|upper }} {{ report.mois_nom }} {{ report.year }}
+            </h3>
+            <a href="{% url 'reports:entreprise_excel' %}?entreprise={{ company.id }}&periode={{ periode }}"
+               class="py-2 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm flex items-center gap-2 active:scale-[.98]">
+                <i data-lucide="sheet" class="w-4 h-4"></i> Excel (annexe)
+            </a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                        <th class="px-4 py-3 font-medium">Noms Patients</th>
+                        <th class="px-4 py-3 font-medium text-center">Pharmacie &amp; Autres</th>
+                        <th class="px-4 py-3 font-medium text-center">Préscrit</th>
+                        <th class="px-4 py-3 font-medium text-center">Effectué</th>
+                        <th class="px-4 py-3 font-medium text-center">Restant</th>
+                        <th class="px-4 py-3 font-medium text-center">Coût</th>
+                        <th class="px-4 py-3 font-medium">Date</th>
+                        <th class="px-4 py-3 font-medium">Observation</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                    {% for r in report.rows %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                        <td class="px-4 py-3 font-medium">{{ forloop.counter }}. {{ r.patient.full_name }}</td>
+                        <td class="px-4 py-3 text-center">{% if r.pharmacie %}{{ r.pharmacie }}{% endif %}</td>
+                        <td class="px-4 py-3 text-center">{{ r.prescrit }}</td>
+                        <td class="px-4 py-3 text-center">{{ r.effectue }}</td>
+                        <td class="px-4 py-3 text-center">{{ r.restant }}</td>
+                        <td class="px-4 py-3 text-center font-semibold">{{ r.cout_txt }}</td>
+                        <td class="px-4 py-3 whitespace-nowrap">{{ r.date_txt }}</td>
+                        <td class="px-4 py-3 text-gray-400">{{ r.observation }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun patient de cette entreprise ce mois-ci.</td></tr>
+                    {% endfor %}
+                </tbody>
+                {% if report.rows %}
+                <tfoot>
+                    <tr class="border-t-2 border-gray-300 dark:border-gray-700 font-bold">
+                        <td class="px-4 py-3">TOTAL</td>
+                        <td class="px-4 py-3 text-center">{{ report.tot.pharmacie }}</td>
+                        <td class="px-4 py-3 text-center">{{ report.tot.prescrit }}</td>
+                        <td class="px-4 py-3 text-center">{{ report.tot.effectue }}</td>
+                        <td class="px-4 py-3 text-center">{{ report.tot.restant }}</td>
+                        <td class="px-4 py-3 text-center">{{ report.tot.cout }}</td>
+                        <td colspan="2"></td>
+                    </tr>
+                    <tr class="font-bold text-brand-700 dark:text-brand-300">
+                        <td class="px-4 py-3">TOTAL GÉNÉRAL</td>
+                        <td colspan="4"></td>
+                        <td class="px-4 py-3 text-center">{{ report.total_general }}</td>
+                        <td colspan="2" class="px-4 py-3 text-right text-xs text-gray-400">{{ report.cloture }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+    {% elif company is None %}
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-8 border border-gray-200 dark:border-gray-800 text-center text-gray-400 animate-fade-up">
+        Choisissez une entreprise ci-dessus pour générer son rapport mensuel.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

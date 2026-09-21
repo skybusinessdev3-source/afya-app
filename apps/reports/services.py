@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date as date_cls
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.db.models import Sum
 
@@ -53,21 +54,91 @@ def _ventilation(payments):
     return vent
 
 
+# ================= AVANCES SÉANCES =================
+# (x/y) dans le rapport = x séances EFFECTUÉES / y séances PAYÉES (avance),
+# et non « y prescrites » : tout le monde ne paie pas de la même manière.
+# prix_séance = montant dû (centre) ÷ séances prescrites → y = payé ÷ prix_séance.
+
+def _factures_centre(patient_ids):
+    """Montants dus/payés (USD) des factures 'centre' de chaque patient :
+    on exclut pharmacie, labo, médecine et soins à domicile — seules les
+    séances/consultations comptent pour l'avance en séances."""
+    from apps.finance.models import Invoice, Payment
+    res = {pid: {'due': Decimal('0'), 'paid': Decimal('0')} for pid in patient_ids}
+    if not patient_ids:
+        return res
+    invoices = (Invoice.objects
+                .filter(patient_id__in=patient_ids)
+                .exclude(status=Invoice.Status.CANCELLED)
+                .prefetch_related('lab_records', 'home_care_services',
+                                  'medicine_records', 'payments'))
+    for inv in invoices:
+        if (inv.label.startswith('Pharmacie') or inv.lab_records.exists()
+                or inv.home_care_services.exists() or inv.medicine_records.exists()):
+            continue  # pas une facture de séances/consultations
+        res[inv.patient_id]['due'] += inv.amount_usd
+        res[inv.patient_id]['paid'] += sum(
+            p.amount_usd for p in inv.payments.all()
+            if p.status == Payment.Status.VALID)
+    return res
+
+
+def _seances_payees(due, paid, prescribed):
+    """Nombre de séances payées (avance). None si non calculable
+    (pas de séances prescrites ou pas de montant dû au centre)."""
+    if not prescribed or prescribed <= 0 or due <= 0:
+        return None
+    prix = due / prescribed
+    if prix <= 0:
+        return None
+    return (paid / prix).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)
+
+
+def _fmt_seances(nb):
+    """3.0 → '3' ; 2.5 → '2.5'."""
+    if nb is None:
+        return None
+    return _fmt_nombre(nb)
+
+
+def _fmt_nombre(d):
+    """Decimal → texte lisible : 20 (jamais '2E+1'), 12.5 (jamais '12.50')."""
+    txt = format(d, 'f')
+    if '.' in txt:
+        txt = txt.rstrip('0').rstrip('.')
+    return txt
+
+
 # ================= JOURNALIER =================
 
 def daily_report(d):
-    sessions = Session.objects.filter(date=d).select_related('patient', 'service')
+    sessions = Session.objects.filter(date=d).select_related('patient', 'patient__company', 'service')
     payments = Payment.objects.filter(date=d, status=Payment.Status.VALID)
     expenses = Expense.objects.filter(date=d)
 
     vent = _ventilation(payments)
+    # Avances : factures 'centre' de tous les patients présents ce jour
+    pids = {s.patient_id for s in sessions}
+    fin = _factures_centre(pids)
+
+    def _seances_label(patient):
+        # Entreprise « créances » (ex : LTJ) : le patient ne paie pas → prescrites
+        if patient.company_id and patient.company and patient.company.facturation_entreprise:
+            return f"_{patient.sessions_done}/{patient.sessions_prescribed}_"
+        payees = _seances_payees(fin[patient.id]['due'], fin[patient.id]['paid'],
+                                 patient.sessions_prescribed)
+        total = _fmt_seances(payees)
+        if total is None:                       # pas de tarif calculable → prescrites
+            total = patient.sessions_prescribed
+        return f"_{patient.sessions_done}/{total}_"
+
     patients_lines = []
     for i, s in enumerate(sessions, 1):
         pays = [p for p in payments if p.invoice and p.invoice.patient_id == s.patient_id]
         amounts = {'USD': sum(p.amount_original for p in pays if p.currency_original == 'USD'),
                    'FC': sum(p.amount_original for p in pays if p.currency_original == 'FC')}
         money = f" : {_fmt(amounts)}" if (amounts['USD'] or amounts['FC']) else ""
-        seances = f"_{s.patient.sessions_done}/{s.patient.sessions_prescribed}_"
+        seances = _seances_label(s.patient)
         patients_lines.append(f"{i}. {s.patient.full_name} ({seances}{money})")
 
     # --- Patients des AUTRES services (labo, médecine, domicile, pharmacie) ---
@@ -262,3 +333,105 @@ def whatsapp_annual(r):
         "*Cordialement* 🙌",
     ]
     return '\n'.join(lines)
+
+# ================= ENTREPRISES (ex : LTJ) =================
+# Les impayés des patients d'une entreprise « facturée à l'entreprise » ne sont
+# PAS des dettes patient : ce sont des CRÉANCES sur l'entreprise, récapitulées
+# ici mensuellement (format de l'annexe LTJ).
+
+PRIX_SEANCE_DEFAUT = Decimal('20')   # tarif général d'une séance kiné
+
+
+def _prix_seance(patient):
+    """Prix d'une séance pour ce patient : montant dû (centre) ÷ prescrites,
+    sinon tarif général (20 $)."""
+    fin = _factures_centre([patient.id])[patient.id]
+    if patient.sessions_prescribed > 0 and fin['due'] > 0:
+        prix = (fin['due'] / patient.sessions_prescribed).quantize(
+            Decimal('0.01'), rounding=ROUND_HALF_UP)
+        if prix > 0:
+            return prix
+    return PRIX_SEANCE_DEFAUT
+
+
+def company_report(company, year, month):
+    """Rapport mensuel des patients d'une entreprise (créances entreprise)."""
+    import calendar as _cal
+    from apps.finance.models import Invoice, Payment
+
+    MOIS = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet',
+            'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+    last_day = _cal.monthrange(year, month)[1]
+
+    rows = []
+    tot = {'pharmacie': Decimal('0'), 'prescrit': 0, 'effectue': 0,
+           'restant': 0, 'cout': Decimal('0')}
+
+    for p in company.patients.all():
+        sessions_m = p.sessions.filter(date__year=year, date__month=month,
+                                       status='DONE').order_by('date')
+        invoices = [i for i in p.invoices
+                    .filter(date__year=year, date__month=month)
+                    .exclude(status=Invoice.Status.CANCELLED)
+                    .prefetch_related('lab_records', 'home_care_services',
+                                      'medicine_records')]
+        if not sessions_m.exists() and not invoices:
+            continue  # aucune activité ce mois → hors rapport
+
+        # « Pharmacie & Autres » = facturé hors séances (pharmacie, labo,
+        # médecine, domicile) — la créance naît à la FACTURATION (pas au paiement)
+        pharmacie = Decimal('0')
+        for inv in invoices:
+            if (inv.label.startswith('Pharmacie') or inv.lab_records.exists()
+                    or inv.home_care_services.exists() or inv.medicine_records.exists()):
+                pharmacie += inv.amount_usd
+
+        effectue = sessions_m.count()
+        prescrit = p.sessions_prescribed
+        restant = max(prescrit - effectue, 0)
+        prix = _prix_seance(p)
+        cout = (prix * effectue).quantize(Decimal('0.01'))
+
+        # Colonne Date : plage des séances du mois (« 01-30/07/2026 »)
+        if sessions_m.exists():
+            d1, d2 = sessions_m.first().date, sessions_m.last().date
+            date_txt = (f"{d1:%d/%m/%Y}" if d1 == d2
+                        else f"{d1:%d}-{d2:%d/%m/%Y}")
+        elif invoices:
+            date_txt = f"{min(i.date for i in invoices):%d/%m/%Y}"
+        else:
+            date_txt = '—'
+
+        obs = []
+        obs.append("Séances en cours" if restant > 0 else "Séances terminées")
+        if pharmacie > 0:
+            obs.append("Pharmacie")
+
+        rows.append({
+            'patient': p, 'pharmacie': pharmacie, 'prescrit': prescrit,
+            'effectue': effectue, 'restant': restant, 'prix': prix,
+            'cout': cout, 'cout_txt': f"{_fmt_nombre(prix)}x{effectue}={_fmt_nombre(cout)}",
+            'date_txt': date_txt, 'observation': ' + '.join(obs),
+        })
+        tot['pharmacie'] += pharmacie
+        tot['prescrit'] += prescrit
+        tot['effectue'] += effectue
+        tot['restant'] += restant
+        tot['cout'] += cout
+
+    return {
+        'company': company,
+        'label': f"{MOIS[month]} {year}",
+        'mois_nom': MOIS[month].upper(),
+        'year': year, 'month': month,
+        'rows': rows,
+        'tot': tot,
+        'total_general': tot['pharmacie'] + tot['cout'],
+        'cloture': f"CLOTURE {last_day:02d}/{month:02d}/{year}",
+        'creance_usd': sum(
+            i.balance_usd for i in Invoice.objects
+            .filter(patient__company=company)
+            .exclude(status=Invoice.Status.CANCELLED)
+            .prefetch_related('payments')
+            if i.balance_usd > 0),
+    }

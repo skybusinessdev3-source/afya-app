@@ -84,6 +84,151 @@
             location.reload();
         }
 
+        /* ================= CRÉANCES — confirmation avant stockage =================
+           Après chaque opération qui laisse un reste à payer, le serveur renvoie
+           « creance » → ce modal demande si on la stocke (toutes ne sont pas
+           importantes). Les patients d'entreprises (ex : LTJ) ne sont JAMAIS
+           concernés : leurs impayés partent au rapport entreprises. */
+        let _creancePending = null;
+        function askCreance(data) {
+            if (!data || !data.creance) return false;
+            _creancePending = data.creance;
+            document.getElementById('cr-patient').textContent = data.creance.patient;
+            document.getElementById('cr-balance').textContent = data.creance.balance + ' $';
+            document.getElementById('cr-ref').textContent = data.creance.reference;
+            document.getElementById('creance-modal').classList.remove('hidden');
+            lucide.createIcons();
+            return true;
+        }
+        async function submitCreance(decision) {
+            if (!_creancePending) { location.reload(); return; }
+            try {
+                await fetch("{% url 'finance:creance_decide' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json',
+                               'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] },
+                    body: JSON.stringify({ invoice_id: _creancePending.invoice_id, decision: decision }),
+                });
+            } catch (e) {}
+            location.reload();
+        }
+
+        /* ================= ALARMES RAPPELS RDV =================
+           Polling toutes les 20 s : si une nouvelle notification arrive →
+           sirène + vibration + bannière + notification navigateur.
+           (Le endpoint déclenche aussi les rappels dus côté serveur.) */
+        let _lastUnread = null, _audioCtx = null, _alarmOsc = null;
+
+        function _unlockAudio() {
+            try { _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().then(function (p) {
+                    if (p === 'granted') _subscribePush();
+                });
+            } else if ('Notification' in window && Notification.permission === 'granted') {
+                _subscribePush();
+            }
+        }
+        document.addEventListener('click', _unlockAudio, { once: true });
+
+        /* ================= WEB PUSH (alarme même application fermée) =================
+           Abonne ce navigateur au service push : le service worker reçoit les
+           rappels même quand tous les onglets AFYA sont fermés. */
+        function _urlB64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = atob(base64);
+            return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+        }
+
+        let _pushTried = false;
+        async function _subscribePush() {
+            if (_pushTried) return;
+            _pushTried = true;
+            const vapidKey = '{{ vapid_public_key|default:"" }}'.trim();
+            if (!vapidKey) return;                       // clé pas encore configurée (.env)
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                let sub = await reg.pushManager.getSubscription();
+                if (!sub) {
+                    sub = await reg.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: _urlB64ToUint8Array(vapidKey),
+                    });
+                }
+                await fetch("{% url 'notifications:push_subscribe' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json',
+                               'X-CSRFToken': (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] },
+                    body: JSON.stringify(sub.toJSON()),
+                });
+            } catch (e) { /* l'utilisateur a refusé ou le navigateur ne supporte pas */ }
+        }
+
+        // Si la permission est déjà accordée, on s'abonne tout de suite (sans attendre un clic)
+        {% if user.is_authenticated %}
+        if ('Notification' in window && Notification.permission === 'granted') {
+            _subscribePush();
+        }
+        {% endif %}
+
+        function _playAlarm() {
+            if (!_audioCtx) return;
+            _stopAlarm();
+            try {
+                const t0 = _audioCtx.currentTime;
+                const osc = _audioCtx.createOscillator();
+                const gain = _audioCtx.createGain();
+                osc.type = 'square';
+                for (let i = 0; i < 24; i++) {
+                    osc.frequency.setValueAtTime(i % 2 ? 660 : 880, t0 + i * 0.5);
+                }
+                gain.gain.setValueAtTime(0.12, t0);
+                osc.connect(gain).connect(_audioCtx.destination);
+                osc.start(t0); osc.stop(t0 + 12);
+                _alarmOsc = osc;
+            } catch (e) {}
+        }
+        function _stopAlarm() {
+            if (_alarmOsc) { try { _alarmOsc.stop(); } catch (e) {} _alarmOsc = null; }
+            document.getElementById('alarm-banner')?.classList.add('hidden');
+        }
+
+        function _showAlarmBanner(n) {
+            const b = document.getElementById('alarm-banner');
+            if (!b || !n) return;
+            document.getElementById('alarm-text').textContent = n.title + ' — ' + n.message;
+            document.getElementById('alarm-link').href = n.link || '#';
+            b.classList.remove('hidden');
+        }
+
+        {% if user.is_authenticated %}
+        async function _checkNotifs() {
+            try {
+                const res = await fetch("{% url 'notifications:api_unread' %}",
+                                        { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (_lastUnread !== null && data.count > _lastUnread) {
+                    _playAlarm();
+                    if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]);
+                    const n = data.latest[0];
+                    if (n) {
+                        _showAlarmBanner(n);
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            new Notification(n.title, { body: n.message, tag: 'afya-' + n.id });
+                        }
+                    }
+                }
+                _lastUnread = data.count;
+            } catch (e) {}
+        }
+        setInterval(_checkNotifs, 20000);
+        _checkNotifs();
+        {% endif %}
+
         /* ================= SIDEBAR REPLIABLE (Kimi-style) ================= */
         function toggleSidebar() {
             const sb = document.getElementById('app-sidebar');
@@ -240,9 +385,17 @@
             <a href="{% url 'reports:daily' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'reports' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
             </a>
-            <a href="{% url 'finance:debts' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'finance' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+            <a href="{% url 'finance:debts' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'finance' and un == 'debts' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="hand-coins" class="w-5 h-5"></i> Dettes
             </a>
+            <a href="{% url 'reports:entreprises' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if un == 'entreprises' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+                <i data-lucide="building-2" class="w-5 h-5"></i> Entreprises
+            </a>
+            {% if user.is_superuser %}
+            <a href="{% url 'finance:operations' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if un == 'operations' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+                <i data-lucide="history" class="w-5 h-5"></i> Opérations
+            </a>
+            {% endif %}
             <a href="{% url 'messaging:home' %}" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'messaging' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
                 <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
             </a>
@@ -416,9 +569,17 @@
         <a href="{% url 'reports:daily' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'reports' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="file-text" class="w-5 h-5"></i> Rapports
         </a>
-        <a href="{% url 'finance:debts' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'finance' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+        <a href="{% url 'finance:debts' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'finance' and un == 'debts' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="hand-coins" class="w-5 h-5"></i> Dettes
         </a>
+        <a href="{% url 'reports:entreprises' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if un == 'entreprises' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+            <i data-lucide="building-2" class="w-5 h-5"></i> Entreprises
+        </a>
+        {% if user.is_superuser %}
+        <a href="{% url 'finance:operations' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if un == 'operations' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
+            <i data-lucide="history" class="w-5 h-5"></i> Opérations
+        </a>
+        {% endif %}
         <a href="{% url 'messaging:home' %}" onclick="closeDrawer()" class="side-link flex items-center gap-3 px-3 py-2.5 rounded-xl {% if ns == 'messaging' %}active-link{% else %}hover:bg-gray-100 dark:hover:bg-gray-800/60{% endif %}">
             <i data-lucide="messages-square" class="w-5 h-5"></i> Messagerie
         </a>
@@ -518,6 +679,46 @@
     })();
     lucide.createIcons();
 </script>
+<!-- ================= BANNIÈRE ALARME RDV ================= -->
+<div id="alarm-banner" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] w-[95%] max-w-lg">
+    <div class="flex items-center gap-3 px-4 py-3 rounded-2xl bg-red-600 text-white shadow-2xl animate-pop-in">
+        <i data-lucide="alarm-clock" class="w-6 h-6 shrink-0 animate-bounce"></i>
+        <p id="alarm-text" class="flex-1 text-sm font-semibold"></p>
+        <a id="alarm-link" href="#" class="shrink-0 text-xs font-bold underline">Voir</a>
+        <button onclick="_stopAlarm()" class="shrink-0 w-8 h-8 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center" title="Arrêter l'alarme">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
+</div>
+
+<!-- ================= MODAL CRÉANCE ================= -->
+<div id="creance-modal" class="hidden fixed inset-0 z-[70] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-amber-300 dark:border-amber-700 p-6 animate-pop-in">
+        <h3 class="font-bold text-lg flex items-center gap-2 mb-3">
+            <i data-lucide="hand-coins" class="w-5 h-5 text-amber-500"></i> Créance détectée
+        </h3>
+        <p class="text-sm text-gray-600 dark:text-gray-300">
+            <b id="cr-patient"></b> a un reste à payer de
+            <b id="cr-balance" class="text-red-500"></b>
+            <span class="text-gray-400">(<span id="cr-ref"></span>)</span>.
+        </p>
+        <p class="text-sm mt-2 text-gray-500 dark:text-gray-400">
+            Voulez-vous <b>stocker cette créance</b> dans la page Dettes ?
+            <span class="block text-xs mt-1">💡 Toutes les créances ne sont pas importantes — vous décidez à chaque fois.</span>
+        </p>
+        <div class="grid grid-cols-2 gap-3 mt-5">
+            <button onclick="submitCreance('oui')"
+                    class="py-3 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+                Oui, stocker
+            </button>
+            <button onclick="submitCreance('non')"
+                    class="py-3 rounded-xl border-2 border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-semibold active:scale-[.98]">
+                Non, ignorer
+            </button>
+        </div>
+    </div>
+</div>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

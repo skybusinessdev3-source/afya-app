@@ -69,6 +69,10 @@ class Invoice(TimeStampedModel, CurrencyAmountMixin):
                                      related_name='cancelled_invoices')
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancel_reason = models.CharField(max_length=255, blank=True)
+    # Créance (solde restant dû) : None = pas encore décidé, True = stockée
+    # dans les créances, False = refusée (toutes les créances ne sont pas importantes)
+    debt_tracked = models.BooleanField(null=True, blank=True, default=None,
+                                       verbose_name="Créance stockée")
 
     class Meta:
         ordering = ['-date']

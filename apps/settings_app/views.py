@@ -166,6 +166,25 @@ def company_create(request):
 @login_required
 @require_POST
 @transaction.atomic
+def company_credit_toggle(request, pk):
+    """Bascule « facturé à l'entreprise » : les impayés de ses patients
+    deviennent des CRÉANCES entreprise (rapport mensuel à part — ex : LTJ),
+    jamais des dettes patient."""
+    c = Company.objects.get(pk=pk)
+    c.facturation_entreprise = not c.facturation_entreprise
+    c.save(update_fields=['facturation_entreprise'])
+    log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+              module='settings_app', obj=c,
+              new_value={'facturation_entreprise': c.facturation_entreprise},
+              ip_address=get_client_ip(request))
+    return JsonResponse({'success': True,
+                         'message': f"« {c.name} » : facturation à l'entreprise "
+                                    f"{'ACTIVÉE (créances)' if c.facturation_entreprise else 'désactivée'}."})
+
+
+@login_required
+@require_POST
+@transaction.atomic
 def company_toggle(request, pk):
     c = Company.objects.get(pk=pk)
     c.is_active = not c.is_active

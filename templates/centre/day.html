@@ -194,7 +194,7 @@ function showPatient(p) {
             <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800">Sexe<br><b>${p.sex}</b></div>
             <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800">Téléphone<br><b>${p.phone}</b></div>
             <div class="p-2 rounded-lg bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300">
-                Séances<br><b id="session-counter">${p.sessions_done} faites / ${p.sessions_remaining} restantes</b>
+                Séances<br><b id="session-counter">${p.sessions_done} faites / ${p.sessions_paid ?? p.sessions_prescribed} payées</b>
             </div>
             <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800">Entreprise<br><b>${p.company}</b></div>
         </div>
@@ -287,6 +287,7 @@ async function submitSession(btn) {
         document.getElementById('session-counter').textContent =
             `${data.sessions_done} faites / ${data.sessions_remaining} restantes`;
         document.getElementById('f-amount').value = '';
+        if (typeof askCreance === 'function' && askCreance(data)) return;  // modal « stocker la créance ? »
         setTimeout(() => location.reload(), 1200);
     } else {
         feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
@@ -338,6 +339,7 @@ async function submitNewPatient(btn) {
         feedback.textContent = '✓ ' + data.message;
         closePatientModal();
         showPatient(data.patient);
+        if (typeof askCreance === 'function') askCreance(data);  // créance éventuelle (montant dû)
     } else {
         feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
         feedback.textContent = '✗ ' + data.message;

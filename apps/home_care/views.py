@@ -12,6 +12,7 @@ from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment
+from apps.finance.views import _creance_info
 from apps.patients.models import Patient
 from apps.settings_app.models import Staff
 from .models import HomeCareService, HomeCarePaymentSplit, split_home_care_payment
@@ -139,6 +140,7 @@ def home_care_create(request):
                            f"enregistrée pour {service.patient.full_name}.",
                 'sessions_done': service.sessions_done,
                 'sessions_remaining': service.sessions_remaining,
+                'creance': _creance_info(service.invoice),
             })
 
         # ============ MODE NOUVEAU ============
@@ -189,6 +191,7 @@ def home_care_create(request):
             'success': True,
             'message': f"Prestation créée pour {patient.full_name} "
                        f"({service.sessions_prescribed} séances).",
+            'creance': _creance_info(invoice),
         })
 
     except (Patient.DoesNotExist, HomeCareService.DoesNotExist, KeyError):

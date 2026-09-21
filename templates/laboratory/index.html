@@ -349,6 +349,7 @@ async function submitNewPatient(btn) {
     if (data.success) {
         closePatientModal();
         selectLabPatient(data.patient);
+        if (typeof askCreance === 'function') askCreance(data);  // créance éventuelle (montant dû)
     } else {
         feedback.classList.remove('hidden');
         feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');
@@ -463,6 +464,7 @@ async function submitLab(btn) {
     if (data.success) {
         feedback.classList.add('bg-brand-100', 'dark:bg-brand-950', 'text-brand-700', 'dark:text-brand-300');
         feedback.textContent = '✓ ' + data.message;
+        if (typeof askCreance === 'function' && askCreance(data)) return;  // modal « stocker la créance ? »
         setTimeout(() => location.reload(), 1200);
     } else {
         feedback.classList.add('bg-red-100', 'dark:bg-red-950', 'text-red-700', 'dark:text-red-300');

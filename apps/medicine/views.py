@@ -12,6 +12,7 @@ from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment
+from apps.finance.views import _creance_info
 from apps.patients.models import Patient
 from apps.settings_app.models import MedicineSplitConfig
 from .models import MedicineRecord
@@ -126,6 +127,7 @@ def record_create(request):
             'message': f"{record.get_category_display()} enregistrée pour {patient.full_name}.",
             'splits': {'prescriber': float(record.prescriber_amount_usd),
                        'center': float(record.center_amount_usd)},
+            'creance': _creance_info(invoice),
         })
     except (Patient.DoesNotExist, KeyError):
         return JsonResponse({'success': False, 'message': "Patient introuvable."}, status=404)

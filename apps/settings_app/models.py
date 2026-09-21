@@ -37,6 +37,11 @@ class Company(TimeStampedModel):
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     is_active = models.BooleanField(default=True)
+    # Si coché (ex : LTJ) : les impayés de ses patients sont des CRÉANCES sur
+    # l'entreprise (rapport mensuel à part), jamais des dettes patient.
+    facturation_entreprise = models.BooleanField(
+        default=False,
+        verbose_name="Facturé à l'entreprise (créances)")
 
     class Meta:
         ordering = ['name']

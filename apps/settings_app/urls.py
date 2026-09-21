@@ -13,6 +13,7 @@ urlpatterns = [
     path('api/taux/', views.rate_create, name='rate_create'),
     path('api/entreprise/', views.company_create, name='company_create'),
     path('api/entreprise/<int:pk>/basculer/', views.company_toggle, name='company_toggle'),
+    path('api/entreprise/<int:pk>/creances/', views.company_credit_toggle, name='company_credit_toggle'),
     path('api/repartition-labo/', views.lab_split_create, name='lab_split_create'),
     path('api/repartition-domicile/', views.home_split_create, name='home_split_create'),
     path('api/repartition-medecine/', views.medicine_split_create, name='medicine_split_create'),
