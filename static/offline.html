@@ -1,11 +1,17 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hors ligne — AFYA APP</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             background: #faf8f5;
@@ -26,12 +32,41 @@
             z-index: 0;
             animation: float 7s ease-in-out infinite;
         }
-        .blob.b1 { width: 14rem; height: 14rem; top: -4rem; left: -4rem; }
-        .blob.b2 { width: 9rem;  height: 9rem;  bottom: -3rem; right: -2rem; animation-delay: 2s; }
-        .blob.b3 { width: 5rem;  height: 5rem;  top: 15%; right: 8%; animation-delay: 4s; background: #f9efe6; }
+
+        .blob.b1 {
+            width: 14rem;
+            height: 14rem;
+            top: -4rem;
+            left: -4rem;
+        }
+
+        .blob.b2 {
+            width: 9rem;
+            height: 9rem;
+            bottom: -3rem;
+            right: -2rem;
+            animation-delay: 2s;
+        }
+
+        .blob.b3 {
+            width: 5rem;
+            height: 5rem;
+            top: 15%;
+            right: 8%;
+            animation-delay: 4s;
+            background: #f9efe6;
+        }
+
         @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50%      { transform: translateY(-14px); }
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-14px);
+            }
         }
 
         .card {
@@ -47,9 +82,17 @@
             text-align: center;
             animation: rise 0.6s ease-out both;
         }
+
         @keyframes rise {
-            from { opacity: 0; transform: translateY(24px); }
-            to   { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(24px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* ── Illustration avec flottement doux ── */
@@ -63,18 +106,29 @@
         }
 
         h1 {
-            font-size: 1.5rem; font-weight: 700;
-            margin-bottom: 0.75rem; color: #2e2a26;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            color: #2e2a26;
             animation: rise 0.6s ease-out 0.15s both;
         }
+
         p {
-            color: #7d756c; line-height: 1.6;
-            margin-bottom: 1.5rem; font-size: 0.95rem;
+            color: #7d756c;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
             animation: rise 0.6s ease-out 0.25s both;
         }
 
         /* ── Ligne ECG animée (battement de cœur) ── */
-        .ecg { width: 11rem; margin: 0 auto 1.5rem; display: block; animation: rise 0.6s ease-out 0.35s both; }
+        .ecg {
+            width: 11rem;
+            margin: 0 auto 1.5rem;
+            display: block;
+            animation: rise 0.6s ease-out 0.35s both;
+        }
+
         .ecg path {
             stroke: #c2703e;
             stroke-width: 2.5;
@@ -85,10 +139,22 @@
             stroke-dashoffset: 340;
             animation: heartbeat 2.2s linear infinite;
         }
+
         @keyframes heartbeat {
-            0%   { stroke-dashoffset: 340; opacity: 1; }
-            70%  { stroke-dashoffset: 0;   opacity: 1; }
-            100% { stroke-dashoffset: 0;   opacity: 0; }
+            0% {
+                stroke-dashoffset: 340;
+                opacity: 1;
+            }
+
+            70% {
+                stroke-dashoffset: 0;
+                opacity: 1;
+            }
+
+            100% {
+                stroke-dashoffset: 0;
+                opacity: 0;
+            }
         }
 
         .btn {
@@ -104,50 +170,84 @@
             transition: background 0.2s, transform 0.15s;
             animation: rise 0.6s ease-out 0.45s both;
         }
-        .btn:hover { background: #a85f33; transform: translateY(-2px); }
-        .btn:active { transform: translateY(0); }
+
+        .btn:hover {
+            background: #a85f33;
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
 
         .auto {
-            margin-top: 1.25rem; font-size: 0.8rem; color: #a89f94;
+            margin-top: 1.25rem;
+            font-size: 0.8rem;
+            color: #a89f94;
             animation: rise 0.6s ease-out 0.55s both;
         }
+
         #dot {
-            display: inline-block; width: 0.6rem; height: 0.6rem;
-            border-radius: 50%; background: #d97b6c;
-            margin-right: 0.4rem; vertical-align: middle;
+            display: inline-block;
+            width: 0.6rem;
+            height: 0.6rem;
+            border-radius: 50%;
+            background: #d97b6c;
+            margin-right: 0.4rem;
+            vertical-align: middle;
             animation: blink 1.4s ease-in-out infinite;
         }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        #dot.online { background: #6f9f7a; animation: none; }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        #dot.online {
+            background: #6f9f7a;
+            animation: none;
+        }
 
         .brand {
-            margin-top: 2rem; font-size: 0.75rem;
-            letter-spacing: 0.15em; color: #c4bab0; text-transform: uppercase;
+            margin-top: 2rem;
+            font-size: 0.75rem;
+            letter-spacing: 0.15em;
+            color: #c4bab0;
+            text-transform: uppercase;
             animation: rise 0.6s ease-out 0.65s both;
         }
     </style>
 </head>
+
 <body>
     <div class="blob b1"></div>
     <div class="blob b2"></div>
     <div class="blob b3"></div>
 
     <div class="card">
-        <img class="illus" src="/static/img/offline-illustration.png" alt="Équipe médicale AFYA">
+        <img class="illus" src="/static/img/offline-illustration.jpg" alt="Équipe médicale AFYA">
 
         <h1>Connexion perdue</h1>
 
         <svg class="ecg" viewBox="0 0 200 60">
-            <path d="M0 30 H55 L70 30 L80 8 L95 52 L105 18 L112 30 H145 L152 24 L160 30 H200"/>
+            <path d="M0 30 H55 L70 30 L80 8 L95 52 L105 18 L112 30 H145 L152 24 L160 30 H200" />
         </svg>
 
         <p>AFYA APP n'arrive pas à joindre le serveur.<br>
-        Vérifie ta connexion internet (ou que le serveur est bien démarré), puis réessaie.</p>
+            Vérifie ta connexion internet (ou que le serveur est bien démarré), puis réessaie.</p>
 
         <button class="btn" onclick="window.location.reload()">Réessayer</button>
 
         <div class="auto">
-            <span id="dot"></span><span id="status">Hors ligne — nouvelle tentative automatique dans <b id="count">10</b> s…</span>
+            <span id="dot"></span><span id="status">Hors ligne — nouvelle tentative automatique dans <b
+                    id="count">10</b> s…</span>
         </div>
 
         <div class="brand">AFYA APP — CRF-MK Kinshasa</div>
@@ -169,4 +269,5 @@
         }, 1000);
     </script>
 </body>
+
 </html>
