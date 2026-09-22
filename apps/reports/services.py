@@ -121,15 +121,24 @@ def daily_report(d):
     pids = {s.patient_id for s in sessions}
     fin = _factures_centre(pids)
 
-    def _seances_label(patient):
+    def _seances_label(session):
+        patient = session.patient
+        # Pas une séance de kiné (évaluation, labo, consultation…) :
+        # on affiche le MOTIF, jamais un compteur de séances « 1/0 ».
+        if session.motif != Session.Motif.KINE:
+            return f"_{session.get_motif_display()}_"
         # Entreprise « créances » (ex : LTJ) : le patient ne paie pas → prescrites
         if patient.company_id and patient.company and patient.company.facturation_entreprise:
+            if not patient.sessions_prescribed:
+                return f"_{session.get_motif_display()}_"
             return f"_{patient.sessions_done}/{patient.sessions_prescribed}_"
         payees = _seances_payees(fin[patient.id]['due'], fin[patient.id]['paid'],
                                  patient.sessions_prescribed)
         total = _fmt_seances(payees)
         if total is None:                       # pas de tarif calculable → prescrites
             total = patient.sessions_prescribed
+        if not total:                           # aucune prescription → texte, pas « 1/0 »
+            return f"_{session.get_motif_display()}_"
         return f"_{patient.sessions_done}/{total}_"
 
     patients_lines = []
@@ -138,7 +147,7 @@ def daily_report(d):
         amounts = {'USD': sum(p.amount_original for p in pays if p.currency_original == 'USD'),
                    'FC': sum(p.amount_original for p in pays if p.currency_original == 'FC')}
         money = f" : {_fmt(amounts)}" if (amounts['USD'] or amounts['FC']) else ""
-        seances = _seances_label(s.patient)
+        seances = _seances_label(s)
         patients_lines.append(f"{i}. {s.patient.full_name} ({seances}{money})")
 
     # --- Patients des AUTRES services (labo, médecine, domicile, pharmacie) ---
