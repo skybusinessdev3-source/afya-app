@@ -6,7 +6,7 @@ from django.utils import timezone
 from apps.core.models import TimeStampedModel
 from apps.accounts.models import User
 from apps.patients.models import Patient
-from apps.settings_app.models import MedicineSplitConfig
+from apps.settings_app.models import MedicineSplitConfig, PrescriberConfig, Staff
 from apps.finance.models import CurrencyAmountMixin, Invoice, get_current_rate
 
 
@@ -36,6 +36,8 @@ class MedicineRecord(TimeStampedModel, CurrencyAmountMixin):
     patient = models.ForeignKey(Patient, on_delete=models.PROTECT, related_name='medicine_records')
     category = models.CharField(max_length=30, choices=MedicineSplitConfig.Categories.choices)
     prescriber_name = models.CharField(max_length=150, blank=True, verbose_name="Prescripteur")
+    prescriber = models.ForeignKey(Staff, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name='medicine_records', verbose_name="Médecin (Staff)")
     prestation_other = models.CharField(max_length=150, blank=True, verbose_name="Précision (autre prestation)")
     date = models.DateField(default=timezone.localdate)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DONE)
@@ -55,9 +57,18 @@ class MedicineRecord(TimeStampedModel, CurrencyAmountMixin):
             else:
                 self.rate_used = get_current_rate()
                 self.amount_usd = (self.amount_original / self.rate_used).quantize(Decimal('0.01'))
-            # 2) Répartition figée selon la catégorie
-            prescriber_pct, center_pct = get_active_medicine_split(self.category)
-            self.prescriber_amount_usd = (self.amount_usd * prescriber_pct / 100).quantize(Decimal('0.01'))
+            # 2) Répartition figée — config INDIVIDUELLE du médecin d'abord
+            #    (tarif × % plafonné au montant facturé), sinon split global.
+            config = None
+            if self.prescriber_id:
+                config = PrescriberConfig.objects.filter(
+                    staff_id=self.prescriber_id, category=self.category, is_active=True).first()
+            if config:
+                part = (config.tariff_usd * config.prescriber_pct / 100).quantize(Decimal('0.01'))
+                self.prescriber_amount_usd = min(part, self.amount_usd)
+            else:
+                prescriber_pct, center_pct = get_active_medicine_split(self.category)
+                self.prescriber_amount_usd = (self.amount_usd * prescriber_pct / 100).quantize(Decimal('0.01'))
             self.center_amount_usd = self.amount_usd - self.prescriber_amount_usd
         super().save(*args, **kwargs)
 

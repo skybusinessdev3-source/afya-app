@@ -15,6 +15,19 @@ BRAND = colors.HexColor('#00ad53')
 BRAND_DARK = colors.HexColor('#075931')
 GRAY = colors.HexColor('#6b7280')
 
+# Styles PDF pour les rapports prescripteurs / activités
+PDF_STYLES = {
+    'title': ParagraphStyle('pdf_t', fontSize=16, textColor=BRAND_DARK,
+                            fontName='Helvetica-Bold', spaceAfter=4),
+    'sub': ParagraphStyle('pdf_s', fontSize=13, textColor=BRAND_DARK,
+                          fontName='Helvetica-Bold', spaceAfter=2),
+    'period': ParagraphStyle('pdf_p', fontSize=10, textColor=GRAY, spaceAfter=10),
+    'head': ParagraphStyle('pdf_h', fontSize=9, textColor=colors.white,
+                           fontName='Helvetica-Bold'),
+    'cell': ParagraphStyle('pdf_c', fontSize=9, leading=12),
+}
+
+
 XL_GREEN = PatternFill('solid', fgColor='00AD53')
 XL_LIGHT = PatternFill('solid', fgColor='EAFFF3')
 XL_THIN = Side(style='thin', color='D1D5DB')
@@ -260,5 +273,157 @@ def build_company_excel(report):
 
     buf = BytesIO()
     wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+def _pdf_doc(buf):
+    return SimpleDocTemplate(buf, pagesize=A4, leftMargin=14 * mm, rightMargin=14 * mm,
+                             topMargin=15 * mm, bottomMargin=15 * mm)
+
+
+def _pdf_table_style():
+    return TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), BRAND),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1d5db')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#f0fdf4')]),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#dcfce7')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ])
+
+
+def _pdf_table(columns, rows, total_row, wrap_cols=()):
+    """Tableau PDF : colonnes `wrap_cols` (indices) en Paragraph pour retour à la ligne."""
+    head = [Paragraph(str(c), PDF_STYLES['head']) for c in columns]
+    data = [head]
+    for row in rows:
+        data.append([Paragraph(str(v), PDF_STYLES['cell']) if i in wrap_cols else str(v)
+                     for i, v in enumerate(row)])
+    data.append([str(v) for v in total_row])
+    t = Table(data, hAlign='LEFT', repeatRows=1)
+    t.setStyle(_pdf_table_style())
+    return t
+
+
+def _xl_sheet(titre, periode_txt, columns, rows, total_row, widths):
+    """Classeur Excel : en-tête centre + titre + période + tableau + TOTAL."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = titre.replace('/', '-').replace('\\', '-')[:31]
+    ws.sheet_view.showGridLines = False
+    ncols = len(columns)
+
+    def put(row, col, value, bold=False, fill=None, align='left'):
+        c = ws.cell(row=row, column=col, value=value)
+        c.font = Font(bold=bold)
+        c.border = Border(top=XL_THIN, bottom=XL_THIN, left=XL_THIN, right=XL_THIN)
+        if fill:
+            c.fill = fill
+        c.alignment = Alignment(horizontal=align, vertical='center', wrap_text=True)
+        return c
+
+    last = get_column_letter(ncols)
+    ws.merge_cells(f'A1:{last}1')
+    put(1, 1, _center_name(), bold=True).font = Font(bold=True, size=14, color='075931')
+    ws.merge_cells(f'A2:{last}2')
+    put(2, 1, titre, bold=True)
+    ws.merge_cells(f'A3:{last}3')
+    put(3, 1, f"Période : {periode_txt}")
+
+    row = 5
+    for i, h in enumerate(columns, 1):
+        c = put(row, i, h, bold=True)
+        c.font = Font(bold=True, color='FFFFFF')
+        c.fill = XL_GREEN
+        c.alignment = Alignment(horizontal='center', vertical='center')
+    row += 1
+    for r in rows:
+        for i, v in enumerate(r, 1):
+            put(row, i, v)
+        row += 1
+    for i, v in enumerate(total_row, 1):
+        put(row, i, v, bold=True, fill=XL_LIGHT)
+
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+# ================= PRESCRIPTEUR =================
+
+PRESCRIBER_COLUMNS = ['Date', 'Activité', 'Patient', 'Détail',
+                      'Montant ($)', 'Part ($)', 'Observation']
+PRESCRIBER_WIDTHS = [12, 16, 30, 34, 14, 14, 30]
+
+
+def _prescriber_rows(report):
+    return [[r['date_txt'], r['activite'], r['patient'], r['detail'],
+             r['montant_txt'], r['part_txt'], r['observation'] or '']
+            for r in report['rows']]
+
+
+def build_prescriber_excel(report):
+    """Excel du rapport individuel d'un prescripteur (Observation toujours présente)."""
+    total_row = ['TOTAL', '', '', '', report['total_billed_txt'], report['total_share_txt'], '']
+    return _xl_sheet(f"RAPPORT PRESCRIPTEUR — {report['name']}",
+                     report['periode_txt'],
+                     PRESCRIBER_COLUMNS, _prescriber_rows(report),
+                     total_row, PRESCRIBER_WIDTHS)
+
+
+def build_prescriber_pdf(report):
+    """PDF du rapport individuel d'un prescripteur (Observation toujours présente)."""
+    buf = BytesIO()
+    doc = _pdf_doc(buf)
+    el = [
+        Paragraph(_center_name(), PDF_STYLES['title']),
+        Paragraph(f"RAPPORT PRESCRIPTEUR — {report['name']}", PDF_STYLES['sub']),
+        Paragraph(f"Période : {report['periode_txt']}", PDF_STYLES['period']),
+    ]
+    total_row = ['TOTAL', '', '', '', report['total_billed_txt'], report['total_share_txt'], '']
+    el.append(_pdf_table(PRESCRIBER_COLUMNS, _prescriber_rows(report),
+                         total_row, wrap_cols=(2, 3, 6)))
+    doc.build(el)
+    buf.seek(0)
+    return buf.read()
+
+
+# ================= ACTIVITÉ =================
+
+
+def build_activity_excel(report):
+    """Excel générique d'un rapport d'activité (colonnes dynamiques)."""
+    widths = [14] + [22] * (len(report['columns']) - 1)
+    return _xl_sheet(report['titre'], report['periode_txt'],
+                     report['columns'], report['rows'],
+                     report['total_row'], widths)
+
+
+def build_activity_pdf(report):
+    """PDF générique d'un rapport d'activité (colonnes dynamiques)."""
+    buf = BytesIO()
+    doc = _pdf_doc(buf)
+    el = [
+        Paragraph(_center_name(), PDF_STYLES['title']),
+        Paragraph(report['titre'], PDF_STYLES['sub']),
+        Paragraph(f"Période : {report['periode_txt']}", PDF_STYLES['period']),
+    ]
+    # Colonnes textuelles longues (patient, prestation, prescripteur…) en Paragraph
+    wrap_cols = tuple(i for i, c in enumerate(report['columns'])
+                      if c.lower() not in ('date', 'quantité', 'montant ($)',
+                                           'total ($)', 'prix unit. ($)', 'statut'))
+    el.append(_pdf_table(report['columns'], report['rows'],
+                         report['total_row'], wrap_cols=wrap_cols))
+    doc.build(el)
     buf.seek(0)
     return buf.read()

@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block page_title %}Rapport par prescripteur{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+
+    <!-- ===== Période ===== -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+        <h3 class="font-bold mb-3 flex items-center gap-2">
+            <i data-lucide="stethoscope" class="w-5 h-5 text-brand-600"></i> Rapport par prescripteur
+        </h3>
+        <form method="get" class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input type="date" name="d1" value="{{ d1 }}"
+                   class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <input type="date" name="d2" value="{{ d2 }}"
+                   class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            <button type="submit" class="py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold active:scale-[.98]">
+                Générer
+            </button>
+        </form>
+        <p class="text-xs text-gray-400 mt-2">
+            💡 Cliquez sur un prescripteur pour voir le détail de ses actes (laboratoire + médecine) et l'exporter.
+        </p>
+    </div>
+
+    <!-- ===== Tableau des prescripteurs ===== -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+            <h3 class="font-bold flex items-center gap-2">
+                <i data-lucide="table" class="w-5 h-5 text-brand-600"></i>
+                Prescripteurs du {{ d1|date:"d/m/Y" }} au {{ d2|date:"d/m/Y" }}
+            </h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
+                        <th class="px-4 py-3 font-medium">Prescripteur</th>
+                        <th class="px-4 py-3 font-medium text-center">Actes labo</th>
+                        <th class="px-4 py-3 font-medium text-right">Part labo ($)</th>
+                        <th class="px-4 py-3 font-medium text-center">Actes médecine</th>
+                        <th class="px-4 py-3 font-medium text-right">Part médecine ($)</th>
+                        <th class="px-4 py-3 font-medium text-right">TOTAL part ($)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                    {% for p in prescripteurs %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
+                        <td class="px-4 py-3 font-medium">
+                            <a href="{% url 'reports:prescripteur_detail' key=p.key %}?d1={{ d1 }}&d2={{ d2 }}"
+                               class="text-brand-600 dark:text-brand-400 hover:underline">
+                                {{ p.name }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 text-center">{{ p.labo_count }}</td>
+                        <td class="px-4 py-3 text-right">{{ p.labo_share_txt }}</td>
+                        <td class="px-4 py-3 text-center">{{ p.med_count }}</td>
+                        <td class="px-4 py-3 text-right">{{ p.med_share_txt }}</td>
+                        <td class="px-4 py-3 text-right font-semibold text-brand-600 dark:text-brand-400">{{ p.total_share_txt }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Aucun acte prescripteur sur cette période.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

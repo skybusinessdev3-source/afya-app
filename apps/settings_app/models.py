@@ -198,3 +198,31 @@ class MedicineSplitConfig(TimeStampedModel):
 
     def __str__(self):
         return f"{self.get_category_display()} : {self.prescriber_pct}% / {self.center_pct}%"
+
+
+class PrescriberConfig(TimeStampedModel):
+    """% et tarif INDIVIDUELS d'un médecin, par catégorie de médecine.
+
+    Quand une config active existe pour (médecin, catégorie), la part du
+    médecin = tarif × % / 100, plafonnée au montant réellement facturé.
+    Sinon, la répartition globale (MedicineSplitConfig) s'applique.
+    """
+    staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name='prescriber_configs')
+    category = models.CharField(max_length=30, choices=MedicineSplitConfig.Categories.choices)
+    tariff_usd = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Tarif de base ($)")
+    prescriber_pct = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% médecin")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('staff', 'category')
+        ordering = ['staff__last_name', 'category']
+
+    def clean(self):
+        if self.prescriber_pct is not None and not (0 <= self.prescriber_pct <= 100):
+            raise ValidationError("Le % médecin doit être entre 0 et 100.")
+        if self.tariff_usd is not None and self.tariff_usd <= 0:
+            raise ValidationError("Le tarif de base doit être positif.")
+
+    def __str__(self):
+        return (f"{self.staff} — {self.get_category_display()} : "
+                f"{self.tariff_usd} $ × {self.prescriber_pct}%")

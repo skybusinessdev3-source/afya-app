@@ -1,3 +1,4 @@
+import re
 from datetime import date as date_cls
 
 from django.contrib.auth.decorators import login_required
@@ -10,8 +11,11 @@ from apps.audit.utils import log_event
 
 from apps.settings_app.models import Company
 from .services import (daily_report, whatsapp_daily, monthly_report, whatsapp_monthly,
-                       annual_report, whatsapp_annual, company_report)
-from .exports import build_pdf, build_excel, build_company_excel
+                       annual_report, whatsapp_annual, company_report,
+                       prescribers_summary, prescriber_report, activity_report, ACTIVITES)
+from .exports import (build_pdf, build_excel, build_company_excel,
+                      build_prescriber_excel, build_prescriber_pdf,
+                      build_activity_excel, build_activity_pdf)
 
 
 def _get_report(request):
@@ -117,3 +121,126 @@ def entreprise_excel(request):
     nom = company.name.replace(' ', '_')
     resp['Content-Disposition'] = f'attachment; filename="ANNEXE_{nom}_{report["mois_nom"]}_{year}.xlsx"'
     return resp
+
+
+# ================= PRESCRIPTEURS & ACTIVITÉS =================
+
+def _periode(request):
+    """Période GET d1/d2 (YYYY-MM-DD) ; défaut = 1er du mois → aujourd'hui."""
+    today = timezone.localdate()
+    debut_mois = today.replace(day=1)
+    try:
+        d1 = date_cls.fromisoformat(request.GET.get('d1', ''))
+    except ValueError:
+        d1 = debut_mois
+    try:
+        d2 = date_cls.fromisoformat(request.GET.get('d2', ''))
+    except ValueError:
+        d2 = today
+    if d2 < d1:
+        d1, d2 = d2, d1
+    return d1, d2
+
+
+def _log_export(request):
+    log_event(user=request.user, action=AuditLog.Actions.EXPORT,
+              module='reports', obj=None, ip_address=request.META.get('REMOTE_ADDR'))
+
+
+def _nom_fichier(txt):
+    """Nom de fichier sûr : lettres/chiffres/-/_ uniquement."""
+    return re.sub(r'[^\w\-]+', '_', txt, flags=re.UNICODE).strip('_') or 'rapport'
+
+
+def _excel_response(data, filename):
+    resp = HttpResponse(data, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+
+
+def _pdf_response(data, filename):
+    resp = HttpResponse(data, content_type='application/pdf')
+    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+
+
+@login_required
+def prescripteurs_page(request):
+    """Synthèse par prescripteur (labo + médecine) sur une période."""
+    d1, d2 = _periode(request)
+    return render(request, 'reports/prescripteurs.html', {
+        'page_title': 'Rapport par prescripteur',
+        'd1': d1.isoformat(), 'd2': d2.isoformat(),
+        'prescripteurs': prescribers_summary(d1, d2),
+    })
+
+
+@login_required
+def prescripteur_detail(request, key):
+    """Rapport individuel d'un prescripteur."""
+    d1, d2 = _periode(request)
+    report = prescriber_report(key, d1, d2)
+    return render(request, 'reports/prescripteur_detail.html', {
+        'page_title': f"Prescripteur — {report['name']}",
+        'key': key,
+        'd1': d1.isoformat(), 'd2': d2.isoformat(),
+        'report': report,
+    })
+
+
+@login_required
+def prescripteur_excel(request, key):
+    d1, d2 = _periode(request)
+    report = prescriber_report(key, d1, d2)
+    _log_export(request)
+    data = build_prescriber_excel(report)
+    nom = _nom_fichier(report['name'])
+    return _excel_response(data, f"prescripteur_{nom}_{d1}_{d2}.xlsx")
+
+
+@login_required
+def prescripteur_pdf(request, key):
+    d1, d2 = _periode(request)
+    report = prescriber_report(key, d1, d2)
+    _log_export(request)
+    data = build_prescriber_pdf(report)
+    nom = _nom_fichier(report['name'])
+    return _pdf_response(data, f"prescripteur_{nom}_{d1}_{d2}.pdf")
+
+
+@login_required
+def activite_page(request, slug):
+    """Rapport détaillé d'une activité sur une période."""
+    d1, d2 = _periode(request)
+    report = activity_report(slug, d1, d2)
+    if report is None:
+        return HttpResponse("Activité inconnue.", status=404)
+    return render(request, 'reports/activite.html', {
+        'page_title': 'Rapport par activité',
+        'slug': slug,
+        'activites': ACTIVITES,
+        'd1': d1.isoformat(), 'd2': d2.isoformat(),
+        'report': report,
+    })
+
+
+@login_required
+def activite_excel(request, slug):
+    d1, d2 = _periode(request)
+    report = activity_report(slug, d1, d2)
+    if report is None:
+        return HttpResponse("Activité inconnue.", status=404)
+    _log_export(request)
+    data = build_activity_excel(report)
+    return _excel_response(data, f"activite_{slug}_{d1}_{d2}.xlsx")
+
+
+@login_required
+def activite_pdf(request, slug):
+    d1, d2 = _periode(request)
+    report = activity_report(slug, d1, d2)
+    if report is None:
+        return HttpResponse("Activité inconnue.", status=404)
+    _log_export(request)
+    data = build_activity_pdf(report)
+    return _pdf_response(data, f"activite_{slug}_{d1}_{d2}.pdf")

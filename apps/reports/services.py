@@ -464,3 +464,291 @@ def company_report(company, year, month):
             .prefetch_related('payments')
             if i.balance_usd > 0),
     }
+
+
+# ================= PRESCRIPTEURS & ACTIVITÉS =================
+
+NON_RENSEIGNE = '— Non renseigné —'
+
+# Onglets du rapport par activité : (slug, libellé court)
+ACTIVITES = [
+    ('centre', 'Centre'),
+    ('medecine-generale', 'Méd. générale'),
+    ('medecine-manuelle', 'Méd. manuelle'),
+    ('pharmacie', 'Pharmacie'),
+    ('labo', 'Laboratoire'),
+    ('domicile', 'Domicile'),
+]
+
+
+def _norm_prescriber_name(name):
+    """Normalise un nom de prescripteur pour le regroupement :
+    strip, espaces multiples → 1, casse-insensible.
+    (« / » → espace : la clé transite dans l'URL.)"""
+    if not name:
+        return ''
+    return ' '.join(str(name).replace('/', ' ').split()).lower()
+
+
+def _prescriber_display(record):
+    """Nom affiché : prescriber_name libre, sinon FK Staff, sinon placeholder."""
+    name = getattr(record, 'prescriber_name', '') or ''
+    if name.strip():
+        return ' '.join(name.split())
+    prescriber = getattr(record, 'prescriber', None)
+    if prescriber is not None:
+        return str(prescriber)
+    return NON_RENSEIGNE
+
+
+def _med_family(category):
+    """GENERAL_* → 'generale', MANUAL* → 'manuelle'."""
+    return 'manuelle' if (category or '').startswith('MANUAL') else 'generale'
+
+
+def _med_detail(record):
+    """Prestation affichée : catégorie + précision éventuelle."""
+    label = record.get_category_display()
+    if record.prestation_other:
+        label += f" — {record.prestation_other}"
+    return label
+
+
+def _date_txt(d):
+    return f"{d:%d/%m/%Y}"
+
+
+def prescribers_summary(d1, d2):
+    """Liste des prescripteurs (labo + médecine) ayant des actes entre d1 et d2
+    inclus, regroupés par nom normalisé, triés par nom."""
+    summary = {}
+
+    def _touch(record, kind):
+        name = _prescriber_display(record)
+        key = _norm_prescriber_name(name)
+        entry = summary.setdefault(key, {
+            'key': key, 'name': name,
+            'labo_count': 0, 'labo_share': Decimal('0'),
+            'med_count': 0, 'med_share': Decimal('0'),
+        })
+        entry[f'{kind}_count'] += 1
+        entry[f'{kind}_share'] += record.prescriber_amount_usd or Decimal('0')
+
+    for r in (LaboratoryRecord.objects
+              .filter(date__gte=d1, date__lte=d2)
+              .select_related('prescriber')):
+        _touch(r, 'labo')
+    for r in MedicineRecord.objects.filter(date__gte=d1, date__lte=d2):
+        _touch(r, 'med')
+
+    rows = sorted(summary.values(), key=lambda e: e['name'].casefold())
+    for e in rows:
+        e['total_share'] = e['labo_share'] + e['med_share']
+        e['labo_share_txt'] = _fmt_nombre(e['labo_share'])
+        e['med_share_txt'] = _fmt_nombre(e['med_share'])
+        e['total_share_txt'] = _fmt_nombre(e['total_share'])
+    return rows
+
+
+def prescriber_report(key, d1, d2):
+    """Rapport individuel d'un prescripteur : tous ses actes (labo + médecine)
+    entre d1 et d2, triés par date."""
+    key_norm = _norm_prescriber_name(key)
+    rows = []
+    display_name = None
+
+    for r in (LaboratoryRecord.objects
+              .filter(date__gte=d1, date__lte=d2)
+              .select_related('prescriber', 'patient', 'exam')):
+        name = _prescriber_display(r)
+        if _norm_prescriber_name(name) != key_norm:
+            continue
+        display_name = display_name or name
+        rows.append({
+            'date': r.date, 'date_txt': _date_txt(r.date),
+            'activite': 'Labo',
+            'patient': r.patient.full_name,
+            'detail': r.exam.name,
+            'montant_usd': r.amount_usd,
+            'part_usd': r.prescriber_amount_usd,
+            'montant_txt': _fmt_nombre(r.amount_usd),
+            'part_txt': _fmt_nombre(r.prescriber_amount_usd),
+            'observation': r.observation or '',
+        })
+
+    for r in (MedicineRecord.objects
+              .filter(date__gte=d1, date__lte=d2)
+              .select_related('patient')):
+        name = _prescriber_display(r)
+        if _norm_prescriber_name(name) != key_norm:
+            continue
+        display_name = display_name or name
+        rows.append({
+            'date': r.date, 'date_txt': _date_txt(r.date),
+            'activite': 'Méd. manuelle' if _med_family(r.category) == 'manuelle' else 'Méd. générale',
+            'patient': r.patient.full_name,
+            'detail': _med_detail(r),
+            'montant_usd': r.amount_usd,
+            'part_usd': r.prescriber_amount_usd,
+            'montant_txt': _fmt_nombre(r.amount_usd),
+            'part_txt': _fmt_nombre(r.prescriber_amount_usd),
+            'observation': r.observation or '',
+        })
+
+    rows.sort(key=lambda x: (x['date'], x['activite'], x['patient']))
+    total_billed = sum((x['montant_usd'] for x in rows), Decimal('0'))
+    total_share = sum((x['part_usd'] for x in rows), Decimal('0'))
+
+    return {
+        'name': display_name or key,
+        'd1': d1, 'd2': d2,
+        'periode_txt': f"du {_date_txt(d1)} au {_date_txt(d2)}",
+        'rows': rows,
+        'total_billed': total_billed,
+        'total_share': total_share,
+        'total_billed_txt': _fmt_nombre(total_billed),
+        'total_share_txt': _fmt_nombre(total_share),
+    }
+
+
+def _factures_centre_par_jour(patient_ids, d1, d2):
+    """(patient_id, date) → montant USD des factures 'centre' du jour
+    (on exclut pharmacie, labo, médecine, domicile et les annulées)."""
+    from apps.finance.models import Invoice
+    res = defaultdict(lambda: Decimal('0'))
+    if not patient_ids:
+        return res
+    invoices = (Invoice.objects
+                .filter(patient_id__in=patient_ids, date__gte=d1, date__lte=d2)
+                .exclude(status=Invoice.Status.CANCELLED)
+                .prefetch_related('lab_records', 'home_care_services', 'medicine_records'))
+    for inv in invoices:
+        if (inv.label.startswith('Pharmacie') or inv.lab_records.exists()
+                or inv.home_care_services.exists() or inv.medicine_records.exists()):
+            continue
+        res[(inv.patient_id, inv.date)] += inv.amount_usd
+    return res
+
+
+def _activity_result(slug, titre, d1, d2, columns, rows, total_usd, total_qty=None):
+    """Assemble le dict prêt pour template et exports."""
+    total_txt = _fmt_nombre(total_usd)
+    total_row = ['TOTAL'] + [''] * (len(columns) - 2) + [total_txt]
+    if total_qty is not None:
+        # pharmacie : quantité sous la colonne « Quantité » (4e), total en dernière
+        total_row = ['TOTAL', '', '', str(total_qty), '', total_txt]
+    return {
+        'slug': slug, 'titre': titre,
+        'd1': d1, 'd2': d2,
+        'periode_txt': f"du {_date_txt(d1)} au {_date_txt(d2)}",
+        'columns': columns,
+        'rows': rows,
+        'total_row': total_row,
+        'total_usd': total_usd,
+        'total_usd_txt': total_txt,
+        'total_qty': total_qty,
+    }
+
+
+def activity_report(slug, d1, d2):
+    """Rapport détaillé d'une activité entre d1 et d2 (inclus).
+    Retourne None si le slug est inconnu."""
+    if slug == 'centre':
+        sessions = list(Session.objects
+                        .filter(date__gte=d1, date__lte=d2)
+                        .select_related('patient', 'service')
+                        .order_by('date', 'patient__last_name'))
+        factures = _factures_centre_par_jour({s.patient_id for s in sessions}, d1, d2)
+        columns = ['Date', 'Patient', 'Motif / Service', 'Montant ($)']
+        rows = []
+        total = Decimal('0')
+        for s in sessions:
+            montant = factures.get((s.patient_id, s.date), Decimal('0'))
+            if not montant and s.service_id:
+                montant = s.service.price_usd or Decimal('0')
+            detail = s.get_motif_display()
+            if s.service_id:
+                detail += f" ({s.service.name})"
+            if s.motif == Session.Motif.OTHER and s.motif_other:
+                detail += f" — {s.motif_other}"
+            total += montant
+            rows.append([_date_txt(s.date), s.patient.full_name, detail,
+                         _fmt_nombre(montant) if montant else '—'])
+        return _activity_result(slug, 'RAPPORT CENTRE — SÉANCES & CONSULTATIONS',
+                                d1, d2, columns, rows, total)
+
+    if slug == 'pharmacie':
+        ventes = (PharmacySale.objects
+                  .filter(date__gte=d1, date__lte=d2)
+                  .select_related('product', 'patient')
+                  .order_by('date', 'id'))
+        columns = ['Date', 'Patient', 'Produit', 'Quantité', 'Prix unit. ($)', 'Total ($)']
+        rows = []
+        total = Decimal('0')
+        total_qty = 0
+        for v in ventes:
+            total += v.total_usd
+            total_qty += v.quantity
+            rows.append([_date_txt(v.date),
+                         v.patient.full_name if v.patient else 'Client comptant',
+                         v.product.name, str(v.quantity),
+                         _fmt_nombre(v.unit_price_usd), _fmt_nombre(v.total_usd)])
+        return _activity_result(slug, 'RAPPORT PHARMACIE — VENTES',
+                                d1, d2, columns, rows, total, total_qty=total_qty)
+
+    if slug == 'labo':
+        records = (LaboratoryRecord.objects
+                   .filter(date__gte=d1, date__lte=d2)
+                   .select_related('patient', 'exam', 'prescriber')
+                   .order_by('date', 'id'))
+        columns = ['Date', 'Patient', 'Examen', 'Prescripteur', 'Montant ($)', 'Statut']
+        rows = []
+        total = Decimal('0')
+        for r in records:
+            total += r.amount_usd
+            rows.append([_date_txt(r.date), r.patient.full_name, r.exam.name,
+                         _prescriber_display(r), _fmt_nombre(r.amount_usd),
+                         r.get_status_display()])
+        return _activity_result(slug, 'RAPPORT LABORATOIRE — EXAMENS',
+                                d1, d2, columns, rows, total)
+
+    if slug in ('medecine-generale', 'medecine-manuelle'):
+        famille = 'manuelle' if slug == 'medecine-manuelle' else 'generale'
+        records = [r for r in (MedicineRecord.objects
+                               .filter(date__gte=d1, date__lte=d2)
+                               .select_related('patient')
+                               .order_by('date', 'id'))
+                   if _med_family(r.category) == famille]
+        columns = ['Date', 'Patient', 'Prestation', 'Prescripteur', 'Montant ($)']
+        rows = []
+        total = Decimal('0')
+        for r in records:
+            total += r.amount_usd
+            rows.append([_date_txt(r.date), r.patient.full_name, _med_detail(r),
+                         _prescriber_display(r), _fmt_nombre(r.amount_usd)])
+        titre = ('RAPPORT MÉDECINE MANUELLE' if famille == 'manuelle'
+                 else 'RAPPORT MÉDECINE GÉNÉRALE')
+        return _activity_result(slug, titre, d1, d2, columns, rows, total)
+
+    if slug == 'domicile':
+        services_qs = (HomeCareService.objects
+                       .filter(date__gte=d1, date__lte=d2)
+                       .select_related('patient', 'doctor', 'invoice')
+                       .order_by('date', 'id'))
+        columns = ['Date', 'Patient', 'Prestation', 'Médecin', 'Montant ($)']
+        rows = []
+        total = Decimal('0')
+        for s in services_qs:
+            montant = (s.invoice.amount_usd
+                       if s.invoice_id and s.invoice.status != 'CANCELLED' else None)
+            if montant:
+                total += montant
+            prestation = (f"Soins à domicile — {s.sessions_done}/{s.sessions_prescribed} "
+                          f"séance(s)")
+            rows.append([_date_txt(s.date), s.patient.full_name, prestation,
+                         str(s.doctor) if s.doctor_id else '—',
+                         _fmt_nombre(montant) if montant else '—'])
+        return _activity_result(slug, 'RAPPORT SOINS À DOMICILE',
+                                d1, d2, columns, rows, total)
+
+    return None

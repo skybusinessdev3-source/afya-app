@@ -42,8 +42,15 @@
                 <input id="m-prestation-other" type="text" placeholder="Précisez l'autre prestation…"
                        class="hidden w-full px-3 py-2.5 rounded-xl border border-brand-400 dark:border-brand-700 bg-white dark:bg-gray-800 text-sm">
 
-                <input id="m-prescriber" type="text" placeholder="Prescripteur (Dr. externe accepté)…"
-                       class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <!-- Médecin du centre (config individuelle possible) ou externe -->
+                <select id="m-prescriber-id" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+                        onchange="onPrescriberChange(); updatePreview();">
+                    <option value="">— Choisir un médecin —</option>
+                    {% for m in medecins %}<option value="{{ m.id }}">{{ m }}</option>{% endfor %}
+                    <option value="autre">Autre / externe</option>
+                </select>
+                <input id="m-prescriber" type="text" placeholder="Nom du prescripteur externe…"
+                       class="hidden w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
 
                 <div class="flex gap-2">
                     <input id="m-amount" type="number" min="0" step="0.01" placeholder="Montant facturé *"
@@ -78,8 +85,8 @@
 
                 <div id="m-preview" class="hidden p-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-xs space-y-1">
                     <p>Répartition qui sera appliquée (figée) :</p>
-                    <p>Prescripteur (<span id="mp-pct"></span> %) : <b id="mp-prescriber"></b></p>
-                    <p>Centre (<span id="mp-center-pct"></span> %) : <b id="mp-center"></b></p>
+                    <p>Prescripteur (<span id="mp-pct"></span>) : <b id="mp-prescriber"></b></p>
+                    <p>Centre (<span id="mp-center-pct"></span>) : <b id="mp-center"></b></p>
                 </div>
 
                 <div id="m-feedback" class="hidden px-3 py-2.5 rounded-xl text-sm font-medium"></div>
@@ -178,6 +185,7 @@
 {% block extra_js %}
 <script>
 const PCTS = {{ pcts|safe }};
+const CONFIGS_MEDECINS = {{ configs_medecins|safe }};
 const RATE_FC = 2250; // indicatif — le serveur fige le vrai taux
 let medPatient = null, mTimer = null;
 
@@ -224,18 +232,38 @@ function onCategoryChange() {
     document.getElementById('m-prestation-other').classList.toggle('hidden', !cat.endsWith('_OTHER'));
 }
 
+function onPrescriberChange() {
+    const sel = document.getElementById('m-prescriber-id');
+    const libre = document.getElementById('m-prescriber');
+    const externe = sel.value === 'autre';
+    libre.classList.toggle('hidden', !externe);
+    if (!externe) libre.value = '';
+}
+
 function updatePreview() {
     const cat = document.getElementById('m-category').value;
-    const pct = PCTS[cat] ?? 0;
     const amount = parseFloat(document.getElementById('m-amount').value || '0');
     const box = document.getElementById('m-preview');
     if (amount <= 0) { box.classList.add('hidden'); return; }
     const cur = document.getElementById('m-currency').value;
     const usd = cur === 'FC' ? amount / RATE_FC : amount;
-    document.getElementById('mp-pct').textContent = pct;
-    document.getElementById('mp-center-pct').textContent = 100 - pct;
-    document.getElementById('mp-prescriber').textContent = (usd * pct / 100).toFixed(2) + ' $';
-    document.getElementById('mp-center').textContent = (usd * (100 - pct) / 100).toFixed(2) + ' $';
+
+    // Config INDIVIDUELLE du médecin choisi : tarif × %, plafonné au montant
+    const sid = document.getElementById('m-prescriber-id').value;
+    const cfg = (sid && sid !== 'autre') ? (CONFIGS_MEDECINS[sid] || {})[cat] : null;
+    let prescriber;
+    if (cfg) {
+        prescriber = Math.min(cfg.tariff * cfg.pct / 100, usd);
+        document.getElementById('mp-pct').textContent = cfg.pct + ' % de ' + cfg.tariff + ' $';
+    } else {
+        const pct = PCTS[cat] ?? 0;
+        prescriber = usd * pct / 100;
+        document.getElementById('mp-pct').textContent = pct + ' %';
+    }
+    const center = usd - prescriber;
+    document.getElementById('mp-center-pct').textContent = (usd > 0 ? (center / usd * 100).toFixed(1) : 0) + ' %';
+    document.getElementById('mp-prescriber').textContent = prescriber.toFixed(2) + ' $';
+    document.getElementById('mp-center').textContent = center.toFixed(2) + ' $';
     box.classList.remove('hidden');
 }
 
@@ -257,6 +285,7 @@ async function submitMedicine(btn) {
         date: (document.getElementById('m-date') || {}).value || '',
         category: document.getElementById('m-category').value,
         prestation_other: document.getElementById('m-prestation-other').value,
+        prescriber_id: (() => { const v = document.getElementById('m-prescriber-id').value; return v === 'autre' ? '' : v; })(),
         prescriber_name: document.getElementById('m-prescriber').value,
         amount: document.getElementById('m-amount').value,
         currency: document.getElementById('m-currency').value,

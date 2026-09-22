@@ -2,6 +2,7 @@ import json
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -14,7 +15,8 @@ from apps.finance.models import get_current_rate
 from apps.accounts.models import RegistrationCode, User
 
 from .models import (CenterConfig, Company, Staff, ExchangeRate, LabExam,
-                     LabSplitConfig, HomeCareSplitConfig, MedicineSplitConfig)
+                     LabSplitConfig, HomeCareSplitConfig, MedicineSplitConfig,
+                     PrescriberConfig)
 
 
 def get_client_ip(request):
@@ -46,6 +48,7 @@ def settings_page(request):
         'home_split': HomeCareSplitConfig.objects.filter(is_active=True).first(),
         'medicine_splits': MedicineSplitConfig.objects.filter(is_active=True),
         'medicine_categories': MedicineSplitConfig.Categories,
+        'prescriber_configs': PrescriberConfig.objects.select_related('staff'),
         'exams': LabExam.objects.all(),
         'services': Service.objects.all(),
         'taux': get_current_rate(),
@@ -257,6 +260,64 @@ def medicine_split_create(request):
         return JsonResponse({'success': True, 'message': f'Nouvelle répartition : {cfg}.'})
     except (InvalidOperation, KeyError, ValueError) as e:
         return JsonResponse({'success': False, 'message': f'Données invalides : {e}'}, status=400)
+
+
+# ================= POURCENTAGES PAR MÉDECIN =================
+@login_required
+@require_POST
+@transaction.atomic
+def prescriber_config_create(request):
+    """Tarif + % INDIVIDUELS d'un médecin, par catégorie de médecine.
+    update_or_create sur (médecin, catégorie) — les prestations déjà
+    enregistrées gardent leur répartition figée."""
+    try:
+        data = json.loads(request.body)
+        staff = Staff.objects.get(pk=int(data['staff_id']), is_active=True)
+        tariff_usd = Decimal(str(data['tariff_usd']))
+        prescriber_pct = Decimal(str(data['prescriber_pct']))
+        cfg, created = PrescriberConfig.objects.update_or_create(
+            staff=staff, category=data['category'],
+            defaults={'tariff_usd': tariff_usd,
+                      'prescriber_pct': prescriber_pct,
+                      'is_active': True},
+        )
+        cfg.full_clean()
+        cfg.save()
+        log_event(user=request.user,
+                  action=AuditLog.Actions.CREATE if created else AuditLog.Actions.UPDATE,
+                  module='settings_app', obj=cfg, ip_address=get_client_ip(request))
+        return JsonResponse({'success': True,
+                             'message': f"Configuration enregistrée : {cfg}."})
+    except Staff.DoesNotExist:
+        return JsonResponse({'success': False, 'message': "Médecin introuvable."}, status=404)
+    except (InvalidOperation, KeyError, ValueError, ValidationError) as e:
+        return JsonResponse({'success': False, 'message': f'Données invalides : {e}'}, status=400)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def prescriber_config_toggle(request, pk):
+    cfg = PrescriberConfig.objects.get(pk=pk)
+    cfg.is_active = not cfg.is_active
+    cfg.save(update_fields=['is_active'])
+    log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+              module='settings_app', obj=cfg, ip_address=get_client_ip(request))
+    return JsonResponse({'success': True,
+                         'message': f"{cfg.staff} ({cfg.get_category_display()}) : "
+                                    f"{'activée' if cfg.is_active else 'désactivée'}."})
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def prescriber_config_delete(request, pk):
+    cfg = PrescriberConfig.objects.get(pk=pk)
+    label = f"{cfg.staff} ({cfg.get_category_display()})"
+    log_event(user=request.user, action=AuditLog.Actions.DELETE,
+              module='settings_app', obj=cfg, ip_address=get_client_ip(request))
+    cfg.delete()
+    return JsonResponse({'success': True, 'message': f"Configuration de {label} supprimée."})
 
 
 # ================= EXAMENS =================

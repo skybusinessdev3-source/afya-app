@@ -14,7 +14,7 @@ from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment
 from apps.finance.views import _creance_info
 from apps.patients.models import Patient
-from apps.settings_app.models import MedicineSplitConfig
+from apps.settings_app.models import MedicineSplitConfig, PrescriberConfig, Staff
 from .models import MedicineRecord
 
 
@@ -35,6 +35,18 @@ def _page(request, categories, title):
         cfg = MedicineSplitConfig.objects.filter(category=cat, is_active=True).first()
         pcts[cat] = float(cfg.prescriber_pct) if cfg else 0
 
+    # Médecins du centre (docteurs de préférence, sinon tout le personnel actif)
+    medecins = Staff.objects.filter(is_active=True, title=Staff.Titles.DOCTOR)
+    if not medecins.exists():
+        medecins = Staff.objects.filter(is_active=True)
+
+    # Configs individuelles par médecin — pour l'aperçu JS
+    configs_medecins = {}
+    for cfg in PrescriberConfig.objects.filter(is_active=True):
+        configs_medecins.setdefault(cfg.staff_id, {})[cfg.category] = {
+            'tariff': float(cfg.tariff_usd), 'pct': float(cfg.prescriber_pct),
+        }
+
     return render(request, 'medicine/index.html', {
         'page_title': title,
         'month_label': today.strftime('%B %Y'),
@@ -43,6 +55,8 @@ def _page(request, categories, title):
         'categories': MedicineSplitConfig.Categories,
         'allowed': [c for c in MedicineSplitConfig.Categories.values if c in categories],
         'pcts': pcts,
+        'medecins': medecins,
+        'configs_medecins': json.dumps(configs_medecins),
         'records': records,
         'totals': {
             'billed': sum(r.amount_usd for r in records),
@@ -80,11 +94,23 @@ def record_create(request):
             return JsonResponse({'success': False, 'message': err}, status=403)
 
         currency = data.get('currency', 'USD')
+
+        # Médecin du centre (Staff) — sinon nom libre (prescripteur externe)
+        prescriber = None
+        prescriber_id = data.get('prescriber_id') or None
+        if prescriber_id:
+            try:
+                prescriber = Staff.objects.get(pk=int(prescriber_id), is_active=True)
+            except (Staff.DoesNotExist, TypeError, ValueError):
+                return JsonResponse({'success': False, 'message': "Médecin introuvable."}, status=404)
+        prescriber_name = str(prescriber) if prescriber else data.get('prescriber_name', '').strip()
+
         record = MedicineRecord.objects.create(
             patient=patient,
             category=data['category'],
             date=op_date,
-            prescriber_name=data.get('prescriber_name', '').strip(),
+            prescriber=prescriber,
+            prescriber_name=prescriber_name,
             prestation_other=data.get('prestation_other', '').strip(),
             amount_original=amount,
             currency_original=currency,
