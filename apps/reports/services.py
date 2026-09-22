@@ -123,15 +123,15 @@ def daily_report(d):
 
     def _seances_label(session):
         patient = session.patient
+        # Patient d'une ENTREPRISE (LTJ, GGA…) — tout sauf « Privée » :
+        # c'est l'entreprise qui paie → on affiche son NOM, pas un compteur.
+        if (patient.company_id and patient.company
+                and patient.company.name.strip().lower() not in ('privée', 'privee')):
+            return f"_{patient.company.name}_"
         # Pas une séance de kiné (évaluation, labo, consultation…) :
         # on affiche le MOTIF, jamais un compteur de séances « 1/0 ».
         if session.motif != Session.Motif.KINE:
             return f"_{session.get_motif_display()}_"
-        # Entreprise « créances » (ex : LTJ) : le patient ne paie pas → prescrites
-        if patient.company_id and patient.company and patient.company.facturation_entreprise:
-            if not patient.sessions_prescribed:
-                return f"_{session.get_motif_display()}_"
-            return f"_{patient.sessions_done}/{patient.sessions_prescribed}_"
         payees = _seances_payees(fin[patient.id]['due'], fin[patient.id]['paid'],
                                  patient.sessions_prescribed)
         total = _fmt_seances(payees)
