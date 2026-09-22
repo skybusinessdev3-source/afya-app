@@ -229,6 +229,25 @@
         _checkNotifs();
         {% endif %}
 
+        /* ================= PAIEMENT MIXTE (2 devises) — générique =================
+           Utilisé par pharmacie, labo, médecine, domicile, dettes :
+           ids attendus : {p}-paid2, {p}-paid-currency2, {p}-pay2-row */
+        function togglePayMix(p) {
+            const row = document.getElementById(p + '-pay2-row');
+            if (!row) return;
+            if (row.style.display !== 'flex') {
+                row.style.display = 'flex';
+                const c1 = document.getElementById(p + '-paid-currency')
+                        || document.getElementById(p + '-currency');
+                const c2 = document.getElementById(p + '-paid-currency2');
+                if (c1 && c2) c2.value = (c1.value === 'USD') ? 'FC' : 'USD';
+            } else {
+                row.style.display = 'none';
+                const a2 = document.getElementById(p + '-paid2');
+                if (a2) a2.value = '';
+            }
+        }
+
         /* ================= SIDEBAR REPLIABLE (Kimi-style) ================= */
         function toggleSidebar() {
             const sb = document.getElementById('app-sidebar');

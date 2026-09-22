@@ -117,22 +117,29 @@ def home_care_create(request):
             log_event(user=request.user, action=AuditLog.Actions.UPDATE,
                       module='home_care', obj=service, ip_address=get_client_ip(request))
 
-            amount_paid = Decimal(str(data.get('amount_paid', '0') or '0'))
-            if amount_paid > 0:
+            cur1 = data.get('paid_currency', 'USD')
+            paiements = [
+                (Decimal(str(data.get('amount_paid', '0') or '0')), cur1),
+                (Decimal(str(data.get('amount_paid2', '0') or '0')),
+                 data.get('paid_currency2') or ('FC' if cur1 == 'USD' else 'USD')),
+            ]
+            paiements = [(a, c) for a, c in paiements if a > 0]
+            if paiements:
                 if not service.invoice:
                     return JsonResponse({'success': False,
                                          'message': "Cette prestation n'a pas de facture."}, status=400)
-                payment = Payment.objects.create(
-                    invoice=service.invoice,
-                    amount_original=amount_paid,
-                    currency_original=data.get('paid_currency', 'USD'),
-                    date=op_date,
-                    received_by=request.user,
-                )
-                # Répartition sur le MONTANT PAYÉ (figée au taux du paiement)
-                split_home_care_payment(payment)
-                log_event(user=request.user, action=AuditLog.Actions.CREATE,
-                          module='finance', obj=payment, ip_address=get_client_ip(request))
+                for amount_paid, cur in paiements:
+                    payment = Payment.objects.create(
+                        invoice=service.invoice,
+                        amount_original=amount_paid,
+                        currency_original=cur,
+                        date=op_date,
+                        received_by=request.user,
+                    )
+                    # Répartition sur le MONTANT PAYÉ (figée au taux du paiement)
+                    split_home_care_payment(payment)
+                    log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                              module='finance', obj=payment, ip_address=get_client_ip(request))
 
             return JsonResponse({
                 'success': True,
@@ -174,12 +181,17 @@ def home_care_create(request):
         log_event(user=request.user, action=AuditLog.Actions.CREATE,
                   module='finance', obj=invoice, ip_address=get_client_ip(request))
 
-        amount_paid = Decimal(str(data.get('amount_paid', '0') or '0'))
-        if amount_paid > 0:
+        cur1 = data.get('paid_currency', currency)
+        paiements = [
+            (Decimal(str(data.get('amount_paid', '0') or '0')), cur1),
+            (Decimal(str(data.get('amount_paid2', '0') or '0')),
+             data.get('paid_currency2') or ('FC' if cur1 == 'USD' else 'USD')),
+        ]
+        for amount_paid, cur in [(a, c) for a, c in paiements if a > 0]:
             payment = Payment.objects.create(
                 invoice=invoice,
                 amount_original=amount_paid,
-                currency_original=data.get('paid_currency', currency),
+                currency_original=cur,
                 date=op_date,
                 received_by=request.user,
             )

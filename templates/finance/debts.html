@@ -116,6 +116,17 @@
                     <option value="USD">USD</option><option value="FC">FC</option>
                 </select>
             </div>
+            <button type="button" onclick="togglePayMix('dp')"
+                    class="self-start text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1">
+                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Paiement en 2 devises ($ + FC)
+            </button>
+            <div id="dp-pay2-row" style="display:none" class="gap-3">
+                <input id="dp-paid2" type="number" min="0" step="0.01" placeholder="2ᵉ montant (l'autre devise)"
+                       class="flex-1 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <select id="dp-paid-currency2" class="w-28 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <option value="FC">FC</option><option value="USD">USD</option>
+                </select>
+            </div>
             {% if can_backdate %}
             <div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900">
                 <label class="text-xs font-semibold text-amber-700 dark:text-amber-300">📅 Date du paiement (responsables)</label>
@@ -156,6 +167,8 @@ async function submitPay(btn) {
             invoice_id: PAY_INVOICE,
             amount: document.getElementById('dp-amount').value,
             currency: document.getElementById('dp-currency').value,
+            amount2: (document.getElementById('dp-paid2') || {}).value || '0',
+            currency2: (document.getElementById('dp-paid-currency2') || {}).value || '',
             date: (document.getElementById('dp-date') || {}).value || '',
         }),
     });

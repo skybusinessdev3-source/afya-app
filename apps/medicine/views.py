@@ -110,12 +110,19 @@ def record_create(request):
         log_event(user=request.user, action=AuditLog.Actions.CREATE,
                   module='finance', obj=invoice, ip_address=get_client_ip(request))
 
-        amount_paid = Decimal(str(data.get('amount_paid', '0') or '0'))
-        if amount_paid > 0:
+        # --- Paiements éventuels — 1 ou 2 devises (paiement mixte $ + FC) ---
+        cur1 = data.get('paid_currency', currency)
+        paiements = [
+            (Decimal(str(data.get('amount_paid', '0') or '0')), cur1),
+            (Decimal(str(data.get('amount_paid2', '0') or '0')),
+             data.get('paid_currency2') or ('FC' if cur1 == 'USD' else 'USD')),
+        ]
+        paiements = [(a, c) for a, c in paiements if a > 0]
+        for amount_paid, cur in paiements:
             payment = Payment.objects.create(
                 invoice=invoice,
                 amount_original=amount_paid,
-                currency_original=data.get('paid_currency', currency),
+                currency_original=cur,
                 date=op_date,
                 received_by=request.user,
             )

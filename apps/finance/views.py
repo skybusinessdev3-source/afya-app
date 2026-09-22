@@ -146,30 +146,36 @@ def debt_pay(request):
         if err:
             return JsonResponse({'success': False, 'message': err}, status=403)
 
-        amount = Decimal(str(data.get('amount', '0') or '0'))
-        if amount <= 0:
+        # 1 ou 2 paiements (paiement mixte $ + FC)
+        cur1 = data.get('currency', 'USD')
+        paiements = [
+            (Decimal(str(data.get('amount', '0') or '0')), cur1),
+            (Decimal(str(data.get('amount2', '0') or '0')),
+             data.get('currency2') or ('FC' if cur1 == 'USD' else 'USD')),
+        ]
+        paiements = [(a, c) for a, c in paiements if a > 0]
+        if not paiements:
             return JsonResponse({'success': False, 'message': "Le montant doit être positif."}, status=400)
 
-        # Anti trop-perçu : on compare en USD (le modèle fige le taux à l'enregistrement)
-        currency = data.get('currency', 'USD')
-        if currency == 'FC':
-            amount_usd = (amount / get_current_rate()).quantize(Decimal('0.01'))
-        else:
-            amount_usd = amount
-        if amount_usd > inv.balance_usd:
+        # Anti trop-perçu : on compare le TOTAL en USD (taux figé à l'enregistrement)
+        rate = get_current_rate()
+        total_usd = sum(((a / rate).quantize(Decimal('0.01')) if c == 'FC' else a)
+                        for a, c in paiements)
+        if total_usd > inv.balance_usd:
             return JsonResponse({'success': False,
                                  'message': f"Montant supérieur au reste dû ({inv.balance_usd} $)."},
                                 status=400)
 
-        payment = Payment.objects.create(
-            invoice=inv,
-            amount_original=amount,
-            currency_original=currency,
-            date=op_date,
-            received_by=request.user,
-        )
-        log_event(user=request.user, action=AuditLog.Actions.CREATE,
-                  module='finance', obj=payment, ip_address=get_client_ip(request))
+        for amount, currency in paiements:
+            payment = Payment.objects.create(
+                invoice=inv,
+                amount_original=amount,
+                currency_original=currency,
+                date=op_date,
+                received_by=request.user,
+            )
+            log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                      module='finance', obj=payment, ip_address=get_client_ip(request))
 
         reste = inv.balance_usd
         msg = (f"Facture {inv.reference} soldée ✔" if reste <= 0

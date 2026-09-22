@@ -70,6 +70,18 @@
                         <option value="FC">FC</option>
                     </select>
                 </div>
+                <button type="button" onclick="togglePayMix('h')"
+                        class="self-start text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 mt-1">
+                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Paiement en 2 devises ($ + FC)
+                </button>
+                <div id="h-pay2-row" style="display:none" class="gap-2 mt-1">
+                    <input id="h-paid2" type="number" min="0" step="0.01" placeholder="2ᵉ montant (l'autre devise)"
+                           class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <select id="h-paid-currency2" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold outline-none">
+                        <option value="FC">FC</option>
+                        <option value="USD">$ USD</option>
+                    </select>
+                </div>
                 <input id="h-obs" type="text" placeholder="Observation (optionnel)…"
                        class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
 
@@ -295,6 +307,8 @@ async function submitHomeCare(btn) {
             date: (document.getElementById('h-date') || {}).value || '',
             service_id: currentService.service_id,
             amount_paid: document.getElementById('h-paid').value || '0',
+            amount_paid2: (document.getElementById('h-paid2') || {}).value || '0',
+            paid_currency2: (document.getElementById('h-paid-currency2') || {}).value || '',
             paid_currency: document.getElementById('h-paid-currency').value,
             observation: document.getElementById('h-obs').value,
         };
@@ -308,6 +322,8 @@ async function submitHomeCare(btn) {
             amount: document.getElementById('h-amount').value,
             currency: document.getElementById('h-currency').value,
             amount_paid: document.getElementById('h-paid').value || '0',
+            amount_paid2: (document.getElementById('h-paid2') || {}).value || '0',
+            paid_currency2: (document.getElementById('h-paid-currency2') || {}).value || '',
             paid_currency: document.getElementById('h-paid-currency').value,
             observation: document.getElementById('h-obs').value,
         };
