@@ -121,6 +121,22 @@ def daily_report(d):
     pids = {s.patient_id for s in sessions}
     fin = _factures_centre(pids)
 
+    # Produits achetés en pharmacie ce jour, regroupés par patient
+    ventes_jour = list(PharmacySale.objects.filter(date=d).select_related('product', 'patient'))
+    produits = {}
+    for v in ventes_jour:
+        if v.patient_id and v.product_id:
+            produits.setdefault(v.patient_id, []).append(v)
+
+    def _produits_label(patient_id):
+        # '3 Navrox + 2 Orthoglic + Baume' - quantité affichée seulement si > 1
+        achats = produits.get(patient_id)
+        if not achats:
+            return ""
+        return " + ".join(
+            f"{v.quantity} {v.product.name}" if v.quantity > 1 else v.product.name
+            for v in achats)
+
     def _seances_label(session):
         patient = session.patient
         # Patient d'une ENTREPRISE (LTJ, GGA…) — tout sauf « Privée » :
@@ -148,7 +164,9 @@ def daily_report(d):
                    'FC': sum(p.amount_original for p in pays if p.currency_original == 'FC')}
         money = f" : {_fmt(amounts)}" if (amounts['USD'] or amounts['FC']) else ""
         seances = _seances_label(s)
-        patients_lines.append(f"{i}. {s.patient.full_name} ({seances}{money})")
+        prods = _produits_label(s.patient_id)
+        detail = f" ; {prods}" if prods else ""
+        patients_lines.append(f"{i}. {s.patient.full_name} ({seances}{money}{detail})")
 
     # --- Patients des AUTRES services (labo, médecine, domicile, pharmacie) ---
     # Pas de séance au centre ce jour → ils doivent quand même apparaître au rapport.
@@ -175,9 +193,11 @@ def daily_report(d):
         amounts = {'USD': sum(p.amount_original for p in pays if p.currency_original == 'USD'),
                    'FC': sum(p.amount_original for p in pays if p.currency_original == 'FC')}
         money = f" : {_fmt(amounts)}" if (amounts['USD'] or amounts['FC']) else ""
+        prods = _produits_label(pid)
+        detail = f" : {prods}" if prods else ""
         i += 1
         patients_lines.append(f"{i}. {info['patient'].full_name} "
-                              f"({'/'.join(sorted(info['tags']))}{money})")
+                              f"({'/'.join(sorted(info['tags']))}{money}{detail})")
 
     exp_total = _sums_by_currency(expenses)
     total = _sums_by_currency(payments)
@@ -197,7 +217,7 @@ def daily_report(d):
         'expense_lines': [f"* {e.label} : _{e.amount_original} {e.currency_original}_" for e in expenses],
         'total_depenses': _fmt(exp_total),
         'solde': _fmt({'USD': total['USD'] - exp_total['USD'], 'FC': total['FC'] - exp_total['FC']}),
-        'extra': f"Pharmacie : {PharmacySale.objects.filter(date=d).count()} vente(s) · "
+        'extra': f"Pharmacie : {len(ventes_jour)} vente(s) · "
                  f"Labo : {LaboratoryRecord.objects.filter(date=d).count()} examen(s)",
     }
 
