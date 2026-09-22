@@ -232,6 +232,18 @@ function showPatient(p) {
                     <option value="FC">FC</option>
                 </select>
             </div>
+            <button type="button" id="f-pay2-toggle" onclick="togglePay2()"
+                    class="self-start text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1">
+                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Paiement en 2 devises (ex : 10 $ + 11 500 FC)
+            </button>
+            <div id="f-pay2-row" style="display:none" class="gap-2">
+                <input id="f-amount2" type="number" min="0" step="0.01" placeholder="2ᵉ montant (l'autre devise)"
+                       class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <select id="f-currency2" class="w-24 shrink-0 px-3 py-2.5 rounded-xl border border-brand-400 dark:border-brand-700 bg-white dark:bg-gray-800 text-sm font-semibold text-brand-700 dark:text-brand-300 focus:ring-2 focus:ring-brand-500 outline-none">
+                    <option value="FC">FC</option>
+                    <option value="USD">$ USD</option>
+                </select>
+            </div>
             <input id="f-notes" type="text" placeholder="Notes (optionnel)…"
                    class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
         </div>
@@ -248,6 +260,24 @@ function showPatient(p) {
     document.getElementById('f-motif').addEventListener('change', (e) => {
         document.getElementById('f-motif-other').classList.toggle('hidden', e.target.value !== 'OTHER');
     });
+    document.getElementById('f-currency').addEventListener('change', (e) => {
+        const c2 = document.getElementById('f-currency2');
+        if (c2) c2.value = e.target.value === 'USD' ? 'FC' : 'USD';
+    });
+}
+
+/* ================= PAIEMENT MIXTE (2 devises) ================= */
+function togglePay2() {
+    const row = document.getElementById('f-pay2-row');
+    const open = row.style.display !== 'flex';
+    if (open) {
+        row.style.display = 'flex';
+        const c1 = document.getElementById('f-currency').value;
+        document.getElementById('f-currency2').value = c1 === 'USD' ? 'FC' : 'USD';
+    } else {
+        row.style.display = 'none';
+        document.getElementById('f-amount2').value = '';
+    }
 }
 
 /* ================= ENVOI DE LA SÉANCE ================= */
@@ -265,6 +295,8 @@ async function submitSession(btn) {
         professional_id: document.getElementById('f-professional').value,
         amount_paid: document.getElementById('f-amount').value || '0',
         currency: document.getElementById('f-currency').value,
+        amount_paid2: (document.getElementById('f-amount2') || {}).value || '0',
+        currency2: (document.getElementById('f-currency2') || {}).value || '',
         notes: document.getElementById('f-notes').value,
     };
 
@@ -287,6 +319,8 @@ async function submitSession(btn) {
         document.getElementById('session-counter').textContent =
             `${data.sessions_done} faites / ${data.sessions_remaining} restantes`;
         document.getElementById('f-amount').value = '';
+        document.getElementById('f-amount2').value = '';
+        document.getElementById('f-pay2-row').style.display = 'none';
         if (typeof askCreance === 'function' && askCreance(data)) return;  // modal « stocker la créance ? »
         setTimeout(() => location.reload(), 1200);
     } else {
