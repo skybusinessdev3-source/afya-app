@@ -659,31 +659,31 @@ def prescriber_report(key, d1, d2):
 
 
 def _factures_centre_par_jour(patient_ids, d1, d2):
-    """(patient_id, date) → montant USD des factures 'centre' du jour
+    """(patient_id, date) → liste des factures 'centre' du jour
     (on exclut pharmacie, labo, médecine, domicile et les annulées)."""
     from apps.finance.models import Invoice
-    res = defaultdict(lambda: Decimal('0'))
+    res = defaultdict(list)
     if not patient_ids:
         return res
     invoices = (Invoice.objects
                 .filter(patient_id__in=patient_ids, date__gte=d1, date__lte=d2)
                 .exclude(status=Invoice.Status.CANCELLED)
-                .prefetch_related('lab_records', 'home_care_services', 'medicine_records'))
+                .prefetch_related('lab_records', 'home_care_services',
+                                  'medicine_records', 'payments'))
     for inv in invoices:
         if (inv.label.startswith('Pharmacie') or inv.lab_records.exists()
                 or inv.home_care_services.exists() or inv.medicine_records.exists()):
             continue
-        res[(inv.patient_id, inv.date)] += inv.amount_usd
+        res[(inv.patient_id, inv.date)].append(inv)
     return res
 
 
-def _activity_result(slug, titre, d1, d2, columns, rows, total_usd, total_qty=None):
-    """Assemble le dict prêt pour template et exports."""
-    total_txt = _fmt_nombre(total_usd)
-    total_row = ['TOTAL'] + [''] * (len(columns) - 2) + [total_txt]
-    if total_qty is not None:
-        # pharmacie : quantité sous la colonne « Quantité » (4e), total en dernière
-        total_row = ['TOTAL', '', '', str(total_qty), '', total_txt]
+def _activity_result(slug, titre, d1, d2, columns, rows, totals_map, total_usd, total_qty=None):
+    """Assemble le dict prêt pour template et exports.
+    totals_map : {index_colonne: texte} pour la ligne TOTAL."""
+    total_row = ['TOTAL'] + [''] * (len(columns) - 1)
+    for idx, txt in totals_map.items():
+        total_row[idx] = txt
     return {
         'slug': slug, 'titre': titre,
         'd1': d1, 'd2': d2,
@@ -692,13 +692,16 @@ def _activity_result(slug, titre, d1, d2, columns, rows, total_usd, total_qty=No
         'rows': rows,
         'total_row': total_row,
         'total_usd': total_usd,
-        'total_usd_txt': total_txt,
+        'total_usd_txt': _fmt_nombre(total_usd),
         'total_qty': total_qty,
     }
 
 
 def activity_report(slug, d1, d2):
     """Rapport détaillé d'une activité entre d1 et d2 (inclus).
+
+    Chaque ligne affiche le FACTURÉ et le PAYÉ (réellement encaissé) —
+    le total de référence est le PAYÉ, jamais le montant dû.
     Retourne None si le slug est inconnu."""
     if slug == 'centre':
         sessions = list(Session.objects
@@ -706,96 +709,146 @@ def activity_report(slug, d1, d2):
                         .select_related('patient', 'service')
                         .order_by('date', 'patient__last_name'))
         factures = _factures_centre_par_jour({s.patient_id for s in sessions}, d1, d2)
-        columns = ['Date', 'Patient', 'Motif / Service', 'Montant ($)']
+        columns = ['Date', 'Patient', 'Motif / Service', 'Facturé ($)', 'Payé ($)']
         rows = []
-        total = Decimal('0')
+        tot_fact, tot_paye = Decimal('0'), Decimal('0')
         for s in sessions:
-            montant = factures.get((s.patient_id, s.date), Decimal('0'))
-            if not montant and s.service_id:
-                montant = s.service.price_usd or Decimal('0')
+            invs = factures.get((s.patient_id, s.date), [])
+            if invs:
+                fact = sum((i.amount_usd for i in invs), Decimal('0'))
+                paye = sum((i.amount_paid_usd for i in invs), Decimal('0'))
+            elif s.service_id and s.service.price_usd:
+                fact, paye = s.service.price_usd, Decimal('0')
+            else:
+                fact, paye = Decimal('0'), Decimal('0')
             detail = s.get_motif_display()
             if s.service_id:
                 detail += f" ({s.service.name})"
             if s.motif == Session.Motif.OTHER and s.motif_other:
                 detail += f" — {s.motif_other}"
-            total += montant
+            tot_fact += fact
+            tot_paye += paye
             rows.append([_date_txt(s.date), s.patient.full_name, detail,
-                         _fmt_nombre(montant) if montant else '—'])
+                         _fmt_nombre(fact) if fact else '—',
+                         _fmt_nombre(paye) if paye else '—'])
         return _activity_result(slug, 'RAPPORT CENTRE — SÉANCES & CONSULTATIONS',
-                                d1, d2, columns, rows, total)
+                                d1, d2, columns, rows,
+                                {3: _fmt_nombre(tot_fact), 4: _fmt_nombre(tot_paye)},
+                                tot_paye)
 
     if slug == 'pharmacie':
-        ventes = (PharmacySale.objects
-                  .filter(date__gte=d1, date__lte=d2)
-                  .select_related('product', 'patient')
-                  .order_by('date', 'id'))
-        columns = ['Date', 'Patient', 'Produit', 'Quantité', 'Prix unit. ($)', 'Total ($)']
-        rows = []
-        total = Decimal('0')
-        total_qty = 0
+        from apps.finance.models import Invoice
+        ventes = list(PharmacySale.objects
+                      .filter(date__gte=d1, date__lte=d2)
+                      .select_related('product', 'patient')
+                      .order_by('date', 'id'))
+        # Factures pharmacie par (patient, jour) → payé réparti au prorata des ventes
+        par_jour = defaultdict(list)
+        for inv in (Invoice.objects
+                    .filter(date__gte=d1, date__lte=d2, label__startswith='Pharmacie')
+                    .exclude(status=Invoice.Status.CANCELLED)
+                    .prefetch_related('payments')):
+            par_jour[(inv.patient_id, inv.date)].append(inv)
+        ventes_jour = defaultdict(lambda: Decimal('0'))
         for v in ventes:
-            total += v.total_usd
+            ventes_jour[(v.patient_id, v.date)] += v.total_usd
+        columns = ['Date', 'Patient', 'Produit', 'Quantité',
+                   'Prix unit. ($)', 'Facturé ($)', 'Payé ($)']
+        rows = []
+        tot_fact, tot_paye, total_qty = Decimal('0'), Decimal('0'), 0
+        for v in ventes:
+            invs_j = par_jour.get((v.patient_id, v.date), [])
+            paye_j = sum((i.amount_paid_usd for i in invs_j), Decimal('0'))
+            total_j = ventes_jour[(v.patient_id, v.date)]
+            paye = (paye_j * (v.total_usd / total_j)).quantize(Decimal('0.01')) \
+                if total_j > 0 else Decimal('0')
+            tot_fact += v.total_usd
+            tot_paye += paye
             total_qty += v.quantity
             rows.append([_date_txt(v.date),
                          v.patient.full_name if v.patient else 'Client comptant',
                          v.product.name, str(v.quantity),
-                         _fmt_nombre(v.unit_price_usd), _fmt_nombre(v.total_usd)])
+                         _fmt_nombre(v.unit_price_usd), _fmt_nombre(v.total_usd),
+                         _fmt_nombre(paye)])
         return _activity_result(slug, 'RAPPORT PHARMACIE — VENTES',
-                                d1, d2, columns, rows, total, total_qty=total_qty)
+                                d1, d2, columns, rows,
+                                {3: str(total_qty), 5: _fmt_nombre(tot_fact),
+                                 6: _fmt_nombre(tot_paye)},
+                                tot_paye, total_qty=total_qty)
 
     if slug == 'labo':
         records = (LaboratoryRecord.objects
                    .filter(date__gte=d1, date__lte=d2)
-                   .select_related('patient', 'exam', 'prescriber')
+                   .select_related('patient', 'exam', 'prescriber', 'invoice')
+                   .prefetch_related('invoice__payments')
                    .order_by('date', 'id'))
-        columns = ['Date', 'Patient', 'Examen', 'Prescripteur', 'Montant ($)', 'Statut']
+        columns = ['Date', 'Patient', 'Examen', 'Prescripteur',
+                   'Facturé ($)', 'Payé ($)', 'Statut']
         rows = []
-        total = Decimal('0')
+        tot_fact, tot_paye = Decimal('0'), Decimal('0')
         for r in records:
-            total += r.amount_usd
+            paye = (r.amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))
+            tot_fact += r.amount_usd
+            tot_paye += paye
             rows.append([_date_txt(r.date), r.patient.full_name, r.exam.name,
                          _prescriber_display(r), _fmt_nombre(r.amount_usd),
-                         r.get_status_display()])
+                         _fmt_nombre(paye), r.get_status_display()])
         return _activity_result(slug, 'RAPPORT LABORATOIRE — EXAMENS',
-                                d1, d2, columns, rows, total)
+                                d1, d2, columns, rows,
+                                {4: _fmt_nombre(tot_fact), 5: _fmt_nombre(tot_paye)},
+                                tot_paye)
 
     if slug in ('medecine-generale', 'medecine-manuelle'):
         famille = 'manuelle' if slug == 'medecine-manuelle' else 'generale'
         records = [r for r in (MedicineRecord.objects
                                .filter(date__gte=d1, date__lte=d2)
-                               .select_related('patient')
+                               .select_related('patient', 'invoice')
+                               .prefetch_related('invoice__payments')
                                .order_by('date', 'id'))
                    if _med_family(r.category) == famille]
-        columns = ['Date', 'Patient', 'Prestation', 'Prescripteur', 'Montant ($)']
+        columns = ['Date', 'Patient', 'Prestation', 'Prescripteur',
+                   'Facturé ($)', 'Payé ($)']
         rows = []
-        total = Decimal('0')
+        tot_fact, tot_paye = Decimal('0'), Decimal('0')
         for r in records:
-            total += r.amount_usd
+            paye = (r.amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))
+            tot_fact += r.amount_usd
+            tot_paye += paye
             rows.append([_date_txt(r.date), r.patient.full_name, _med_detail(r),
-                         _prescriber_display(r), _fmt_nombre(r.amount_usd)])
+                         _prescriber_display(r), _fmt_nombre(r.amount_usd),
+                         _fmt_nombre(paye)])
         titre = ('RAPPORT MÉDECINE MANUELLE' if famille == 'manuelle'
                  else 'RAPPORT MÉDECINE GÉNÉRALE')
-        return _activity_result(slug, titre, d1, d2, columns, rows, total)
+        return _activity_result(slug, titre, d1, d2, columns, rows,
+                                {4: _fmt_nombre(tot_fact), 5: _fmt_nombre(tot_paye)},
+                                tot_paye)
 
     if slug == 'domicile':
         services_qs = (HomeCareService.objects
                        .filter(date__gte=d1, date__lte=d2)
                        .select_related('patient', 'doctor', 'invoice')
+                       .prefetch_related('invoice__payments')
                        .order_by('date', 'id'))
-        columns = ['Date', 'Patient', 'Prestation', 'Médecin', 'Montant ($)']
+        columns = ['Date', 'Patient', 'Prestation', 'Médecin', 'Facturé ($)', 'Payé ($)']
         rows = []
-        total = Decimal('0')
+        tot_fact, tot_paye = Decimal('0'), Decimal('0')
         for s in services_qs:
-            montant = (s.invoice.amount_usd
-                       if s.invoice_id and s.invoice.status != 'CANCELLED' else None)
-            if montant:
-                total += montant
+            fact = (s.invoice.amount_usd
+                    if s.invoice_id and s.invoice.status != 'CANCELLED' else None)
+            paye = s.invoice.amount_paid_usd if fact else None
+            if fact:
+                tot_fact += fact
+            if paye:
+                tot_paye += paye
             prestation = (f"Soins à domicile — {s.sessions_done}/{s.sessions_prescribed} "
                           f"séance(s)")
             rows.append([_date_txt(s.date), s.patient.full_name, prestation,
                          str(s.doctor) if s.doctor_id else '—',
-                         _fmt_nombre(montant) if montant else '—'])
+                         _fmt_nombre(fact) if fact else '—',
+                         _fmt_nombre(paye) if paye else '—'])
         return _activity_result(slug, 'RAPPORT SOINS À DOMICILE',
-                                d1, d2, columns, rows, total)
+                                d1, d2, columns, rows,
+                                {4: _fmt_nombre(tot_fact), 5: _fmt_nombre(tot_paye)},
+                                tot_paye)
 
     return None
