@@ -113,7 +113,8 @@ def _fmt_nombre(d):
 
 def daily_report(d):
     sessions = Session.objects.filter(date=d).select_related('patient', 'patient__company', 'service')
-    payments = Payment.objects.filter(date=d, status=Payment.Status.VALID)
+    payments = (Payment.objects.filter(date=d, status=Payment.Status.VALID)
+                .select_related('invoice', 'invoice__patient'))
     expenses = Expense.objects.filter(date=d)
 
     vent = _ventilation(payments)
@@ -199,12 +200,49 @@ def daily_report(d):
         patients_lines.append(f"{i}. {info['patient'].full_name} "
                               f"({'/'.join(sorted(info['tags']))}{money}{detail})")
 
+    # --- Paiements de DETTES : facture d'un jour PRÉCÉDENT encaissée ce jour ---
+    # Le patient n'a aucun acte aujourd'hui → sans ça il n'apparaîtrait pas au rapport.
+    CAT_DETTE = {'laboratoire': 'du labo', 'pharmacie': 'de la pharmacie',
+                 'centre': 'du centre', 'domicile': 'des soins à domicile',
+                 'medecine_generale': 'de médecine générale',
+                 'medecine_manuelle': 'de médecine manuelle'}
+    dettes = {}
+    for p in payments:
+        inv = p.invoice
+        if inv is not None and inv.patient_id and inv.date < d:
+            dettes.setdefault(inv.patient_id, []).append(p)
+    nb_dettes = 0
+    for pid, pays in dettes.items():
+        if pid in seen or pid in extra:
+            continue  # déjà dans la liste : ses paiements du jour y sont affichés
+        patient = pays[0].invoice.patient
+        amounts = {'USD': sum((p.amount_original for p in pays
+                               if p.currency_original == 'USD'), Decimal('0')),
+                   'FC': sum((p.amount_original for p in pays
+                              if p.currency_original == 'FC'), Decimal('0'))}
+        money = _fmt(amounts)
+        factures = sorted({p.invoice for p in pays}, key=lambda x: (x.date, x.id))
+        if len(factures) == 1:
+            inv = factures[0]
+            cat = _categorize(next(p for p in pays if p.invoice_id == inv.id))
+            txt = (f"Paiement de la dette {CAT_DETTE.get(cat, '')} "
+                   f"pour la date du {inv.date:%d/%m/%Y}")
+        else:
+            parts = []
+            for inv in factures:
+                cat = _categorize(next(p for p in pays if p.invoice_id == inv.id))
+                parts.append(f"{CAT_DETTE.get(cat, 'du centre')} du {inv.date:%d/%m/%Y}")
+            txt = f"Paiement de dettes ({' ; '.join(parts)})"
+        i += 1
+        nb_dettes += 1
+        patients_lines.append(f"{i}. {patient.full_name} ({money} : {txt})")
+
     exp_total = _sums_by_currency(expenses)
     total = _sums_by_currency(payments)
 
     return {
         'label': d.strftime('%d/%m/%Y'),
-        'patients_count': len(seen) + len(extra),
+        'patients_count': len(seen) + len(extra) + nb_dettes,
         'sessions_count': sessions.count(),
         'patients_lines': patients_lines,
         'pharmacy': _fmt(vent['pharmacie']),

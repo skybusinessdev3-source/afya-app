@@ -52,15 +52,32 @@ def lab_page(request):
                 'exams': [],
                 'billed': Decimal('0'), 'prescriber_share': Decimal('0'),
                 'lab_share': Decimal('0'), 'center_share': Decimal('0'),
+                'billed_par_invoice': {},
             }
         g['exams'].append({'name': r.exam.name,
                            'amount': r.amount_original,
                            'currency': r.currency_original})
         g['billed'] += r.amount_usd
+        if r.invoice_id:
+            g['billed_par_invoice'][r.invoice_id] = (
+                g['billed_par_invoice'].get(r.invoice_id, Decimal('0')) + r.amount_usd)
         g['prescriber_share'] += r.prescriber_amount_usd
         g['lab_share'] += r.lab_team_amount_usd
         g['center_share'] += r.center_amount_usd
     groups = sorted(groups.values(), key=lambda g: (g['date'], g['patient']), reverse=True)
+
+    # --- Payé / Reste par groupe via les factures liées ---
+    # (prorata si une facture est partagée entre 2 groupes, ex. 2 prescripteurs)
+    inv_ids = {iid for g in groups for iid in g['billed_par_invoice']}
+    inv_map = {inv.id: inv for inv in Invoice.objects.filter(id__in=inv_ids)}
+    for g in groups:
+        paid = Decimal('0')
+        for iid, part in g['billed_par_invoice'].items():
+            inv = inv_map.get(iid)
+            if inv is not None and inv.amount_usd and inv.amount_usd > 0:
+                paid += inv.amount_paid_usd * (part / inv.amount_usd)
+        g['paid'] = paid.quantize(Decimal('0.01'))
+        g['debt'] = max(g['billed'] - g['paid'], Decimal('0')).quantize(Decimal('0.01'))
 
     # --- Résumé par prescripteur : sa part totale du mois en un coup d'œil ---
     presc = {}
@@ -88,6 +105,8 @@ def lab_page(request):
         'prescriber_summary': prescriber_summary,
         'totals': {
             'billed': sum(r.amount_usd for r in records),
+            'paid': sum((g['paid'] for g in groups), Decimal('0')),
+            'debt': sum((g['debt'] for g in groups), Decimal('0')),
             'prescriber': sum(r.prescriber_amount_usd for r in records),
             'lab_team': sum(r.lab_team_amount_usd for r in records),
             'center': sum(r.center_amount_usd for r in records),
