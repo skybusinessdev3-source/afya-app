@@ -102,7 +102,9 @@ def _fmt_seances(nb):
 
 
 def _fmt_nombre(d):
-    """Decimal → texte lisible : 20 (jamais '2E+1'), 12.5 (jamais '12.50')."""
+    """Decimal → texte lisible : 20 (jamais '2E+1'), 12.5 (jamais '12.50').
+    Arrondi à 2 décimales : jamais de '176.6000000000000000000003'."""
+    d = Decimal(d).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     txt = format(d, 'f')
     if '.' in txt:
         txt = txt.rstrip('0').rstrip('.')
@@ -570,9 +572,11 @@ def prescribers_summary(d1, d2):
             'med_count': 0, 'med_share': Decimal('0'),
         })
         entry[f'{kind}_count'] += 1
-        # Part sur l'ENCAISSÉ, pas le facturé
-        entry[f'{kind}_share'] += (record.prescriber_amount_usd or Decimal('0')) \
-            * ratio_paye(record.invoice)
+        # Part sur l'ENCAISSÉ, pas le facturé (arrondie comme au rapport détaillé)
+        entry[f'{kind}_share'] += (
+            (record.prescriber_amount_usd or Decimal('0'))
+            * ratio_paye(record.invoice)).quantize(Decimal('0.01'),
+                                                   rounding=ROUND_HALF_UP)
 
     for r in (LaboratoryRecord.objects
               .filter(date__gte=d1, date__lte=d2)
@@ -777,26 +781,36 @@ def activity_report(slug, d1, d2):
                                 tot_paye, total_qty=total_qty)
 
     if slug == 'labo':
+        # Groupé par patient : le détail examen par examen reste visible
+        # dans la page Laboratoire ; ici on veut une synthèse lisible.
         records = (LaboratoryRecord.objects
                    .filter(date__gte=d1, date__lte=d2)
-                   .select_related('patient', 'exam', 'prescriber', 'invoice')
-                   .prefetch_related('invoice__payments')
-                   .order_by('date', 'id'))
-        columns = ['Date', 'Patient', 'Examen', 'Prescripteur',
-                   'Facturé ($)', 'Payé ($)', 'Statut']
-        rows = []
-        tot_fact, tot_paye = Decimal('0'), Decimal('0')
+                   .select_related('patient', 'invoice')
+                   .prefetch_related('invoice__payments'))
+        columns = ['Patient', 'Examens (nb)', 'Facturé ($)', 'Payé ($)']
+        par_patient = {}
         for r in records:
-            paye = (r.amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))
-            tot_fact += r.amount_usd
-            tot_paye += paye
-            rows.append([_date_txt(r.date), r.patient.full_name, r.exam.name,
-                         _prescriber_display(r), _fmt_nombre(r.amount_usd),
-                         _fmt_nombre(paye), r.get_status_display()])
-        return _activity_result(slug, 'RAPPORT LABORATOIRE — EXAMENS',
+            paye = (r.amount_usd * ratio_paye(r.invoice)).quantize(
+                Decimal('0.01'), rounding=ROUND_HALF_UP)
+            e = par_patient.setdefault(r.patient_id, {
+                'nom': r.patient.full_name if r.patient else '—',
+                'nb': 0, 'fact': Decimal('0'), 'paye': Decimal('0')})
+            e['nb'] += 1
+            e['fact'] += r.amount_usd
+            e['paye'] += paye
+        rows = []
+        tot_fact, tot_paye, tot_nb = Decimal('0'), Decimal('0'), 0
+        for e in sorted(par_patient.values(), key=lambda x: x['nom'].casefold()):
+            tot_fact += e['fact']
+            tot_paye += e['paye']
+            tot_nb += e['nb']
+            rows.append([e['nom'], str(e['nb']),
+                         _fmt_nombre(e['fact']), _fmt_nombre(e['paye'])])
+        return _activity_result(slug, 'RAPPORT LABORATOIRE — PAR PATIENT',
                                 d1, d2, columns, rows,
-                                {4: _fmt_nombre(tot_fact), 5: _fmt_nombre(tot_paye)},
-                                tot_paye)
+                                {1: str(tot_nb), 2: _fmt_nombre(tot_fact),
+                                 3: _fmt_nombre(tot_paye)},
+                                tot_paye, total_qty=tot_nb)
 
     if slug in ('medecine-generale', 'medecine-manuelle'):
         famille = 'manuelle' if slug == 'medecine-manuelle' else 'generale'

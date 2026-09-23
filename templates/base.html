@@ -455,6 +455,13 @@
         <header class="h-16 sticky top-0 z-30 bg-white/80 dark:bg-gray-900/70 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800/80 flex items-center justify-between px-4 sm:px-6">
             {% if user.is_authenticated %}
             <div class="flex items-center min-w-0">
+                {% if request.resolver_match.url_name != 'dashboard' %}
+                <button onclick="if (window.history.length > 1) { window.history.back(); } else { window.location.href = '{% url 'dashboard' %}'; }"
+                        title="Retour à la page précédente"
+                        class="w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center mr-2 shrink-0">
+                    <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                </button>
+                {% endif %}
                 <button id="sidebar-toggle-btn" onclick="toggleSidebar()" title="Masquer le menu"
                         class="hidden lg:flex w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 items-center justify-center mr-3 shrink-0">
                     <i data-lucide="panel-left-close" class="w-5 h-5"></i>
