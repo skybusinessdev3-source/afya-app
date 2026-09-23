@@ -105,6 +105,7 @@
                 <h3 class="font-bold flex items-center gap-2">
                     <i data-lucide="table" class="w-5 h-5 text-brand-600"></i> Répartition de {{ month_label }}
                 </h3>
+                <p class="text-xs text-gray-400 mt-0.5">Parts calculées sur les montants réellement encaissés (prorata des paiements).</p>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -127,8 +128,8 @@
                             <td class="px-4 py-3 text-gray-400">{{ r.get_category_display }}{% if r.prestation_other %} — {{ r.prestation_other }}{% endif %}</td>
                             <td class="px-4 py-3 text-gray-400">{{ r.prescriber_name|default:"—" }}</td>
                             <td class="px-4 py-3 text-right font-semibold">{{ r.amount_original }} {{ r.currency_original }}</td>
-                            <td class="px-4 py-3 text-right text-gray-400">{{ r.prescriber_amount_usd }} $</td>
-                            <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ r.center_amount_usd }} $</td>
+                            <td class="px-4 py-3 text-right text-gray-400">{{ r.part_presc_paye }} $</td>
+                            <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ r.part_centre_paye }} $</td>
                         </tr>
                         {% empty %}
                         <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Aucune prestation ce mois-ci.</td></tr>

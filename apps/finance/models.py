@@ -166,6 +166,20 @@ class Payment(TimeStampedModel, CurrencyAmountMixin):
         return f"Paiement {self.amount_original} {self.currency_original} ({self.date:%d/%m/%Y})"
 
 
+def ratio_paye(invoice):
+    """Ratio réellement encaissé d'une facture (0 → 1).
+
+    RÈGLE COMPTABLE : toutes les parts (prescripteur, équipe labo, centre)
+    se calculent sur l'argent ENCAISSÉ, jamais sur le montant facturé.
+    Une facture non payée ne génère aucune part ; un paiement partiel
+    génère des parts proportionnelles ; une facture soldée → parts complètes.
+    """
+    if invoice is None or not invoice.amount_usd or invoice.amount_usd <= 0:
+        return Decimal('0')
+    ratio = invoice.amount_paid_usd / invoice.amount_usd
+    return min(max(ratio, Decimal('0')), Decimal('1'))
+
+
 class Expense(TimeStampedModel, CurrencyAmountMixin):
     """Dépense : transport cleaner, A.G, poubelle, autre..."""
 

@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.core.utils import can_backdate, parse_operation_date
-from apps.finance.models import Invoice, Payment
+from apps.finance.models import Invoice, Payment, ratio_paye
 from apps.finance.views import _creance_info
 from apps.patients.models import Patient
 from apps.settings_app.models import MedicineSplitConfig, PrescriberConfig, Staff
@@ -26,9 +26,15 @@ def get_client_ip(request):
 def _page(request, categories, title):
     today = timezone.localdate()
     month_start = today.replace(day=1)
-    records = MedicineRecord.objects.filter(
+    records = list(MedicineRecord.objects.filter(
         category__in=categories, date__gte=month_start
-    ).select_related('patient').order_by('-date')
+    ).select_related('patient', 'invoice').prefetch_related('invoice__payments').order_by('-date'))
+
+    # Parts sur l'ENCAISSÉ (prorata du paiement de la facture), pas le facturé
+    for r in records:
+        rt = ratio_paye(r.invoice)
+        r.part_presc_paye = (r.prescriber_amount_usd * rt).quantize(Decimal('0.01'))
+        r.part_centre_paye = (r.center_amount_usd * rt).quantize(Decimal('0.01'))
 
     pcts = {}
     for cat in categories:
@@ -60,8 +66,8 @@ def _page(request, categories, title):
         'records': records,
         'totals': {
             'billed': sum(r.amount_usd for r in records),
-            'prescriber': sum(r.prescriber_amount_usd for r in records),
-            'center': sum(r.center_amount_usd for r in records),
+            'prescriber': sum((r.part_presc_paye for r in records), Decimal('0')),
+            'center': sum((r.part_centre_paye for r in records), Decimal('0')),
         },
     })
 
@@ -158,8 +164,10 @@ def record_create(request):
         return JsonResponse({
             'success': True,
             'message': f"{record.get_category_display()} enregistrée pour {patient.full_name}.",
-            'splits': {'prescriber': float(record.prescriber_amount_usd),
-                       'center': float(record.center_amount_usd)},
+            'splits': {'prescriber': float(
+                           record.prescriber_amount_usd * ratio_paye(record.invoice)),
+                       'center': float(
+                           record.center_amount_usd * ratio_paye(record.invoice))},
             'creance': _creance_info(invoice),
         })
     except (Patient.DoesNotExist, KeyError):

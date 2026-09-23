@@ -6,7 +6,7 @@ from django.db.models import Sum
 
 from apps.appointments.models import Appointment
 from apps.centre.models import Session
-from apps.finance.models import Expense, Payment
+from apps.finance.models import Expense, Payment, ratio_paye
 from apps.laboratory.models import LaboratoryRecord
 from apps.home_care.models import HomeCareService
 from apps.medicine.models import MedicineRecord
@@ -570,13 +570,18 @@ def prescribers_summary(d1, d2):
             'med_count': 0, 'med_share': Decimal('0'),
         })
         entry[f'{kind}_count'] += 1
-        entry[f'{kind}_share'] += record.prescriber_amount_usd or Decimal('0')
+        # Part sur l'ENCAISSÉ, pas le facturé
+        entry[f'{kind}_share'] += (record.prescriber_amount_usd or Decimal('0')) \
+            * ratio_paye(record.invoice)
 
     for r in (LaboratoryRecord.objects
               .filter(date__gte=d1, date__lte=d2)
-              .select_related('prescriber')):
+              .select_related('prescriber', 'invoice')
+              .prefetch_related('invoice__payments')):
         _touch(r, 'labo')
-    for r in MedicineRecord.objects.filter(date__gte=d1, date__lte=d2):
+    for r in (MedicineRecord.objects.filter(date__gte=d1, date__lte=d2)
+              .select_related('invoice')
+              .prefetch_related('invoice__payments')):
         _touch(r, 'med')
 
     rows = sorted(summary.values(), key=lambda e: e['name'].casefold())
@@ -597,7 +602,8 @@ def prescriber_report(key, d1, d2):
 
     for r in (LaboratoryRecord.objects
               .filter(date__gte=d1, date__lte=d2)
-              .select_related('prescriber', 'patient', 'exam')):
+              .select_related('prescriber', 'patient', 'exam', 'invoice')
+              .prefetch_related('invoice__payments')):
         name = _prescriber_display(r)
         if _norm_prescriber_name(name) != key_norm:
             continue
@@ -608,15 +614,17 @@ def prescriber_report(key, d1, d2):
             'patient': r.patient.full_name,
             'detail': r.exam.name,
             'montant_usd': r.amount_usd,
-            'part_usd': r.prescriber_amount_usd,
+            'part_usd': (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01')),
             'montant_txt': _fmt_nombre(r.amount_usd),
-            'part_txt': _fmt_nombre(r.prescriber_amount_usd),
+            'part_txt': _fmt_nombre(
+                (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))),
             'observation': r.observation or '',
         })
 
     for r in (MedicineRecord.objects
               .filter(date__gte=d1, date__lte=d2)
-              .select_related('patient')):
+              .select_related('patient', 'invoice')
+              .prefetch_related('invoice__payments')):
         name = _prescriber_display(r)
         if _norm_prescriber_name(name) != key_norm:
             continue
@@ -627,9 +635,10 @@ def prescriber_report(key, d1, d2):
             'patient': r.patient.full_name,
             'detail': _med_detail(r),
             'montant_usd': r.amount_usd,
-            'part_usd': r.prescriber_amount_usd,
+            'part_usd': (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01')),
             'montant_txt': _fmt_nombre(r.amount_usd),
-            'part_txt': _fmt_nombre(r.prescriber_amount_usd),
+            'part_txt': _fmt_nombre(
+                (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))),
             'observation': r.observation or '',
         })
 

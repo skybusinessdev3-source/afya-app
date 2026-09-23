@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 from apps.audit.models import AuditLog
 from apps.audit.utils import log_event
 from apps.core.utils import can_backdate, parse_operation_date
-from apps.finance.models import Invoice, Payment
+from apps.finance.models import Invoice, Payment, ratio_paye
 from apps.finance.views import _creance_info
 from apps.patients.models import Patient
 from apps.settings_app.models import LabExam
@@ -34,9 +34,10 @@ def lab_page(request):
     today = timezone.localdate()
     month_start = today.replace(day=1)
 
-    records = LaboratoryRecord.objects.filter(
-        date__gte=month_start
-    ).select_related('patient', 'exam').order_by('-date', 'patient__last_name')
+    records = (LaboratoryRecord.objects.filter(date__gte=month_start)
+               .select_related('patient', 'exam', 'invoice')
+               .prefetch_related('invoice__payments')
+               .order_by('-date', 'patient__last_name'))
 
     # --- Regroupement : 1 ligne par date + patient + prescripteur ---
     # (le détail des examens s'affiche au clic dans le template)
@@ -61,9 +62,10 @@ def lab_page(request):
         if r.invoice_id:
             g['billed_par_invoice'][r.invoice_id] = (
                 g['billed_par_invoice'].get(r.invoice_id, Decimal('0')) + r.amount_usd)
-        g['prescriber_share'] += r.prescriber_amount_usd
-        g['lab_share'] += r.lab_team_amount_usd
-        g['center_share'] += r.center_amount_usd
+        rt = ratio_paye(r.invoice)          # parts sur l'ENCAISSÉ, pas le facturé
+        g['prescriber_share'] += r.prescriber_amount_usd * rt
+        g['lab_share'] += r.lab_team_amount_usd * rt
+        g['center_share'] += r.center_amount_usd * rt
     groups = sorted(groups.values(), key=lambda g: (g['date'], g['patient']), reverse=True)
 
     # --- Payé / Reste par groupe via les factures liées ---
@@ -87,7 +89,7 @@ def lab_page(request):
         if p is None:
             p = presc[k] = {'name': r.prescriber_name.strip() or '— Non renseigné —',
                             'share': Decimal('0'), 'exams': 0, 'patients': set()}
-        p['share'] += r.prescriber_amount_usd
+        p['share'] += r.prescriber_amount_usd * ratio_paye(r.invoice)
         p['exams'] += 1
         p['patients'].add(r.patient_id)
     prescriber_summary = sorted(
@@ -107,9 +109,9 @@ def lab_page(request):
             'billed': sum(r.amount_usd for r in records),
             'paid': sum((g['paid'] for g in groups), Decimal('0')),
             'debt': sum((g['debt'] for g in groups), Decimal('0')),
-            'prescriber': sum(r.prescriber_amount_usd for r in records),
-            'lab_team': sum(r.lab_team_amount_usd for r in records),
-            'center': sum(r.center_amount_usd for r in records),
+            'prescriber': sum(r.prescriber_amount_usd * ratio_paye(r.invoice) for r in records),
+            'lab_team': sum(r.lab_team_amount_usd * ratio_paye(r.invoice) for r in records),
+            'center': sum(r.center_amount_usd * ratio_paye(r.invoice) for r in records),
         },
     }
     return render(request, 'laboratory/index.html', context)
