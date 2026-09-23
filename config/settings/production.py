@@ -26,3 +26,7 @@ DATABASES = {
 
 # Fichiers statiques servis par Nginx
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+# Cookies securises : pilotables par .env (desactives tant que HTTP, a reactiver apres SSL)
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=True)
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=True)
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
