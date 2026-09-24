@@ -303,6 +303,31 @@ def whatsapp_daily(r):
 
 # ================= MENSUEL =================
 
+MOIS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet',
+           'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+
+
+def month_days_report(year, month):
+    """Tous les jours du mois, chacun avec le MÊME contenu que le rapport
+    journalier (patients, ventilation, dépenses, solde).
+    Les jours sans aucune activité sont omis. Les lignes sont nettoyées
+    des marqueurs WhatsApp (* et _) pour un affichage HTML lisible."""
+    import calendar
+
+    def _clean(lignes):
+        return [l.replace('*', '').replace('_', '').strip() for l in lignes]
+
+    jours = []
+    for day in range(1, calendar.monthrange(year, month)[1] + 1):
+        r = daily_report(date_cls(year, month, day))
+        if (r['sessions_count'] or r['patients_count']
+                or r['expense_lines'] or r['total_percus'] != '0'):
+            r['patients_lines'] = _clean(r['patients_lines'])
+            r['expense_lines'] = _clean(r['expense_lines'])
+            jours.append(r)
+    return {'label': f"{MOIS_FR[month]} {year}", 'jours': jours}
+
+
 def monthly_report(year, month):
     payments = Payment.objects.filter(date__year=year, date__month=month, status='VALID')
     expenses = Expense.objects.filter(date__year=year, date__month=month)

@@ -12,7 +12,8 @@ from apps.audit.utils import log_event
 from apps.settings_app.models import Company
 from .services import (daily_report, whatsapp_daily, monthly_report, whatsapp_monthly,
                        annual_report, whatsapp_annual, company_report,
-                       prescribers_summary, prescriber_report, activity_report, ACTIVITES)
+                       prescribers_summary, prescriber_report, activity_report, ACTIVITES,
+                       month_days_report)
 from .exports import (build_pdf, build_excel, build_company_excel,
                       build_prescriber_excel, build_prescriber_pdf,
                       build_activity_excel, build_activity_pdf)
@@ -56,6 +57,23 @@ def report_page(request):
         'page_title': 'Rapports',
         'vue': vue, 'periode': periode,
         'report': report, 'whatsapp_text': text,
+    })
+
+
+@login_required
+def mois_details_page(request):
+    """Toutes les activités du mois, jour par jour (même modèle que le
+    rapport journalier), avec recherche par patient."""
+    today = timezone.localdate()
+    try:
+        year, month = map(int, request.GET.get('periode', f"{today.year}-{today.month}").split('-'))
+        date_cls(year, month, 1)  # valide
+    except ValueError:
+        year, month = today.year, today.month
+    return render(request, 'reports/mois_details.html', {
+        'page_title': 'Détails du mois',
+        'periode': f"{year}-{month:02d}",
+        'report': month_days_report(year, month),
     })
 
 

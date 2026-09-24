@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block page_title %}Détails du mois{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-4">
+
+    <!-- ===== Filtres ===== -->
+    <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up">
+        <form method="get" class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Mois</label>
+                <input type="month" name="periode" value="{{ periode }}"
+                       class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-semibold outline-none focus:ring-2 focus:ring-brand-500">
+            </div>
+            <button type="submit"
+                    class="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm active:scale-[.98] transition">
+                Générer
+            </button>
+            <div class="flex-1 min-w-[220px]">
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Rechercher (patient, motif, produit…)</label>
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input id="search" type="search" placeholder="Ex. Kabongo Annie…" oninput="filtrer()"
+                           class="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <p id="aucun-resultat" class="hidden text-center text-sm text-gray-400 py-6">
+        Aucun résultat pour cette recherche dans {{ report.label }}.
+    </p>
+
+    <!-- ===== Un carte par jour ===== -->
+    {% for j in report.jours %}
+    <div class="jour-card bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up overflow-hidden"
+         data-jour data-date="{{ j.label }}">
+        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2 bg-gray-50 dark:bg-gray-800/50">
+            <h3 class="font-bold flex items-center gap-2">
+                <i data-lucide="calendar-days" class="w-4 h-4 text-brand-600"></i> {{ j.label }}
+            </h3>
+            <span class="text-xs text-gray-400 font-medium">
+                {{ j.patients_count }} patient(s) · {{ j.sessions_count }} séance(s)
+            </span>
+        </div>
+
+        <div class="p-4 grid md:grid-cols-2 gap-5">
+            <!-- Patients et mouvements -->
+            <div>
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Liste des patients et mouvements</h4>
+                <ul class="space-y-1.5 text-sm">
+                    {% for ligne in j.patients_lines %}
+                    <li class="ligne-patient leading-relaxed">{{ ligne }}</li>
+                    {% empty %}
+                    <li class="ligne-patient text-gray-400">—</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <!-- Ventilation + dépenses + solde -->
+            <div class="space-y-3 text-sm">
+                <div>
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Ventilation des recettes</h4>
+                    <div class="space-y-1">
+                        <div class="flex justify-between"><span class="text-gray-400">Centre (séances/consultations)</span><b>{{ j.centre }}</b></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Médecine générale</span><b>{{ j.med_gen }}</b></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Médecine manuelle</span><b>{{ j.med_man }}</b></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Pharmacie</span><b>{{ j.pharmacy }}</b></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Laboratoire</span><b>{{ j.laboratory }}</b></div>
+                        <div class="flex justify-between"><span class="text-gray-400">Soins à domicile</span><b>{{ j.home_care }}</b></div>
+                        <div class="flex justify-between pt-1.5 border-t border-gray-200 dark:border-gray-800">
+                            <span class="font-semibold">Total perçus</span>
+                            <b class="text-brand-600 dark:text-brand-400">{{ j.total_percus }}</b>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Dépenses du jour</h4>
+                    <div class="space-y-1">
+                        {% for e in j.expense_lines %}
+                        <div class="text-red-500">{{ e }}</div>
+                        {% empty %}
+                        <div class="text-gray-400">—</div>
+                        {% endfor %}
+                        <div class="flex justify-between pt-1.5 border-t border-gray-200 dark:border-gray-800">
+                            <span class="text-gray-400">Total dépenses</span><b class="text-red-500">{{ j.total_depenses }}</b>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-between pt-2 border-t-2 border-gray-300 dark:border-gray-700">
+                    <span class="font-bold">Solde / reste en main</span>
+                    <b class="text-brand-600 dark:text-brand-400">{{ j.solde }}</b>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-8 text-center text-gray-400">
+        Aucune activité enregistrée en {{ report.label }}.
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filtrer() {
+    const q = document.getElementById('search').value.trim().toLowerCase();
+    let joursVisibles = 0;
+    document.querySelectorAll('[data-jour]').forEach(card => {
+        let lignesVisibles = 0;
+        const dateMatch = q && (card.dataset.date || '').toLowerCase().includes(q);
+        card.querySelectorAll('.ligne-patient').forEach(li => {
+            const show = !q || dateMatch || li.textContent.toLowerCase().includes(q);
+            li.style.display = show ? '' : 'none';
+            if (show) lignesVisibles++;
+        });
+        const cardVisible = !q || lignesVisibles > 0;
+        card.style.display = cardVisible ? '' : 'none';
+        if (cardVisible) joursVisibles++;
+    });
+    const total = document.querySelectorAll('[data-jour]').length;
+    document.getElementById('aucun-resultat').classList.toggle('hidden', !q || joursVisibles > 0 || total === 0);
+}
+</script>
+{% endblock %}

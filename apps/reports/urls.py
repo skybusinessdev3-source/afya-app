@@ -14,6 +14,7 @@ urlpatterns = [
     path('prescripteurs/<str:key>/', views.prescripteur_detail, name='prescripteur_detail'),
     path('prescripteurs/<str:key>/excel/', views.prescripteur_excel, name='prescripteur_excel'),
     path('prescripteurs/<str:key>/pdf/', views.prescripteur_pdf, name='prescripteur_pdf'),
+    path('mois-details/', views.mois_details_page, name='mois_details'),
     path('activite/<str:slug>/', views.activite_page, name='activite'),
     path('activite/<str:slug>/excel/', views.activite_excel, name='activite_excel'),
     path('activite/<str:slug>/pdf/', views.activite_pdf, name='activite_pdf'),
