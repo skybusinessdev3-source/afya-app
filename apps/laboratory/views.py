@@ -50,11 +50,14 @@ def lab_page(request):
                 'date': r.date,
                 'patient': r.patient.full_name,
                 'prescriber': r.prescriber_name.strip() or '— Non renseigné —',
-                'exams': [],
+                'exams': [], 'ids': [],
                 'billed': Decimal('0'), 'prescriber_share': Decimal('0'),
                 'lab_share': Decimal('0'), 'center_share': Decimal('0'),
                 'billed_par_invoice': {},
+                'prescriber_paid_all': True,
             }
+        g['ids'].append(r.id)
+        g['prescriber_paid_all'] = g['prescriber_paid_all'] and r.prescriber_paid
         g['exams'].append({'name': r.exam.name,
                            'amount': r.amount_original,
                            'currency': r.currency_original})
@@ -97,6 +100,15 @@ def lab_page(request):
           'patients': len(p['patients'])} for p in presc.values()),
         key=lambda p: p['share'], reverse=True)
 
+    # --- Parts prescripteur pas encore marquées « versées » (mois affiché) ---
+    # Bandeau de rappel : ces montants restent à régler aux prescripteurs.
+    parts_attente = [r for r in records
+                     if r.prescriber_amount_usd > 0 and not r.prescriber_paid
+                     and (r.prescriber_name or '').strip()]
+    parts_attente_total = sum(
+        ((r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))
+         for r in parts_attente), Decimal('0'))
+
     context = {
         'page_title': 'Laboratoire',
         'month_label': today.strftime('%B %Y'),
@@ -105,6 +117,8 @@ def lab_page(request):
         'exams': LabExam.objects.filter(is_active=True),
         'groups': groups,
         'prescriber_summary': prescriber_summary,
+        'parts_attente_count': len(parts_attente),
+        'parts_attente_total': parts_attente_total,
         'totals': {
             'billed': sum(r.amount_usd for r in records),
             'paid': sum((g['paid'] for g in groups), Decimal('0')),
@@ -183,6 +197,8 @@ def lab_record_create(request):
                       module='finance', obj=payment, ip_address=get_client_ip(request))
 
         # --- Un enregistrement par examen (splits figés par le modèle) ---
+        # Le prescripteur peut avoir déjà reçu sa part le jour même (case à cocher)
+        part_deja_versee = bool(data.get('prescriber_paid'))
         for exam in exams:
             record = LaboratoryRecord.objects.create(
                 patient=patient,
@@ -193,6 +209,8 @@ def lab_record_create(request):
                 amount_original=exam.price_fc if currency == 'FC' else exam.price_usd,
                 currency_original=currency,
                 status=LaboratoryRecord.Status.DONE,
+                prescriber_paid=part_deja_versee,
+                prescriber_paid_on=op_date if part_deja_versee else None,
                 observation=data.get('observation', ''),
                 created_by=request.user,
             )
@@ -240,5 +258,41 @@ def lab_exam_create(request):
 
         return JsonResponse({'success': True, 'message': f"Examen « {exam.name} » créé."})
 
+    except (InvalidOperation, ValueError):
+        return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)
+
+@login_required
+@require_POST
+@transaction.atomic
+def lab_prescriber_paid(request):
+    """Marque la part prescripteur d'un ou plusieurs examens comme versée (ou non).
+    Réservé aux responsables — c'est un mouvement de caisse."""
+    if not can_backdate(request.user):
+        return JsonResponse({'success': False,
+                             'message': "Réservé aux responsables."}, status=403)
+    try:
+        data = json.loads(request.body)
+        ids = [int(i) for i in data.get('ids', [])]
+        paid = bool(data.get('paid', True))
+        if not ids:
+            return JsonResponse({'success': False,
+                                 'message': "Aucun examen visé."}, status=400)
+        records = list(LaboratoryRecord.objects.filter(id__in=ids))
+        if not records:
+            return JsonResponse({'success': False,
+                                 'message': "Examens introuvables."}, status=404)
+        today = timezone.localdate()
+        for r in records:
+            r.prescriber_paid = paid
+            r.prescriber_paid_on = today if paid else None
+            r.save(update_fields=['prescriber_paid', 'prescriber_paid_on'])
+            log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+                      module='laboratory', obj=r, ip_address=get_client_ip(request))
+        return JsonResponse({
+            'success': True,
+            'message': (f"Part prescripteur marquée « versée » pour {len(records)} examen(s)."
+                        if paid else
+                        f"Part prescripteur remise « en attente » pour {len(records)} examen(s)."),
+        })
     except (InvalidOperation, ValueError):
         return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)

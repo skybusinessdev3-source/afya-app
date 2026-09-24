@@ -40,6 +40,9 @@ class LaboratoryRecord(TimeStampedModel, CurrencyAmountMixin):
     prescriber_amount_usd = models.DecimalField(max_digits=12, decimal_places=2, editable=False)
     lab_team_amount_usd = models.DecimalField(max_digits=12, decimal_places=2, editable=False)
     center_amount_usd = models.DecimalField(max_digits=12, decimal_places=2, editable=False)
+    # Suivi du VERSEMENT de la part prescripteur (indépendant de l'encaissement patient)
+    prescriber_paid = models.BooleanField(default=False, verbose_name="Part prescripteur déjà versée")
+    prescriber_paid_on = models.DateField(null=True, blank=True, verbose_name="Part versée le")
     observation = models.TextField(blank=True)
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
 

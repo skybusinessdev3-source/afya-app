@@ -629,13 +629,19 @@ def prescribers_summary(d1, d2):
             'key': key, 'name': name,
             'labo_count': 0, 'labo_share': Decimal('0'),
             'med_count': 0, 'med_share': Decimal('0'),
+            'paid_share': Decimal('0'), 'unpaid_share': Decimal('0'),
         })
         entry[f'{kind}_count'] += 1
         # Part sur l'ENCAISSÉ, pas le facturé (arrondie comme au rapport détaillé)
-        entry[f'{kind}_share'] += (
-            (record.prescriber_amount_usd or Decimal('0'))
-            * ratio_paye(record.invoice)).quantize(Decimal('0.01'),
-                                                   rounding=ROUND_HALF_UP)
+        part = ((record.prescriber_amount_usd or Decimal('0'))
+                * ratio_paye(record.invoice)).quantize(Decimal('0.01'),
+                                                       rounding=ROUND_HALF_UP)
+        entry[f'{kind}_share'] += part
+        # Suivi du versement : déjà payée au prescripteur ou encore à verser
+        if getattr(record, 'prescriber_paid', False):
+            entry['paid_share'] += part
+        else:
+            entry['unpaid_share'] += part
 
     for r in (LaboratoryRecord.objects
               .filter(date__gte=d1, date__lte=d2)
@@ -653,6 +659,8 @@ def prescribers_summary(d1, d2):
         e['labo_share_txt'] = _fmt_nombre(e['labo_share'])
         e['med_share_txt'] = _fmt_nombre(e['med_share'])
         e['total_share_txt'] = _fmt_nombre(e['total_share'])
+        e['paid_share_txt'] = _fmt_nombre(e['paid_share'])
+        e['unpaid_share_txt'] = _fmt_nombre(e['unpaid_share'])
     return rows
 
 
@@ -681,6 +689,8 @@ def prescriber_report(key, d1, d2):
             'montant_txt': _fmt_nombre(r.amount_usd),
             'part_txt': _fmt_nombre(
                 (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))),
+            'prescriber_paid': bool(r.prescriber_paid),
+            'part_statut': 'Versée' if r.prescriber_paid else 'En attente',
             'observation': r.observation or '',
         })
 
@@ -702,12 +712,16 @@ def prescriber_report(key, d1, d2):
             'montant_txt': _fmt_nombre(r.amount_usd),
             'part_txt': _fmt_nombre(
                 (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))),
+            'prescriber_paid': bool(r.prescriber_paid),
+            'part_statut': 'Versée' if r.prescriber_paid else 'En attente',
             'observation': r.observation or '',
         })
 
     rows.sort(key=lambda x: (x['date'], x['activite'], x['patient']))
     total_billed = sum((x['montant_usd'] for x in rows), Decimal('0'))
     total_share = sum((x['part_usd'] for x in rows), Decimal('0'))
+    total_paid = sum((x['part_usd'] for x in rows if x['prescriber_paid']), Decimal('0'))
+    total_unpaid = total_share - total_paid
 
     return {
         'name': display_name or key,
@@ -718,6 +732,8 @@ def prescriber_report(key, d1, d2):
         'total_share': total_share,
         'total_billed_txt': _fmt_nombre(total_billed),
         'total_share_txt': _fmt_nombre(total_share),
+        'total_paid_txt': _fmt_nombre(total_paid),
+        'total_unpaid_txt': _fmt_nombre(total_unpaid),
     }
 
 

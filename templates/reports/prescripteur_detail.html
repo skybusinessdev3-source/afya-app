@@ -30,12 +30,12 @@
             </a>
         </div>
         <p class="text-xs text-gray-400 mt-2">
-            💡 La colonne « Observation » sert à noter si le pourcentage du prescripteur a été versé.
+            💡 La colonne « Part » indique si le pourcentage a déjà été versé au prescripteur ; « Observation » reste libre pour vos notes.
         </p>
     </div>
 
     <!-- ===== Résumé ===== -->
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.05s">
             <p class="text-xs text-gray-400 font-medium">Total facturé ({{ report.periode_txt }})</p>
             <p class="text-2xl font-bold">{{ report.total_billed_txt }} $</p>
@@ -43,6 +43,14 @@
         <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-brand-200 dark:border-brand-900 animate-fade-up" style="animation-delay:.1s">
             <p class="text-xs text-gray-400 font-medium">Part du prescripteur</p>
             <p class="text-2xl font-bold text-brand-600 dark:text-brand-400">{{ report.total_share_txt }} $</p>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.15s">
+            <p class="text-xs text-gray-400 font-medium">Déjà versée</p>
+            <p class="text-2xl font-bold text-brand-600 dark:text-brand-400">{{ report.total_paid_txt }} $</p>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 border border-amber-200 dark:border-amber-900 animate-fade-up" style="animation-delay:.2s">
+            <p class="text-xs text-gray-400 font-medium">Reste à verser</p>
+            <p class="text-2xl font-bold text-amber-500">{{ report.total_unpaid_txt }} $</p>
         </div>
     </div>
 
@@ -64,6 +72,7 @@
                         <th class="px-4 py-3 font-medium">Détail</th>
                         <th class="px-4 py-3 font-medium text-right">Montant ($)</th>
                         <th class="px-4 py-3 font-medium text-right">Part ($)<br><span class="text-[10px] font-normal">sur encaissé</span></th>
+                        <th class="px-4 py-3 font-medium text-center">Part versée ?</th>
                         <th class="px-4 py-3 font-medium">Observation</th>
                     </tr>
                 </thead>
@@ -76,10 +85,17 @@
                         <td class="px-4 py-3">{{ r.detail }}</td>
                         <td class="px-4 py-3 text-right">{{ r.montant_txt }}</td>
                         <td class="px-4 py-3 text-right font-semibold">{{ r.part_txt }}</td>
+                        <td class="px-4 py-3 text-center">
+                            {% if r.prescriber_paid %}
+                            <span class="inline-block px-2 py-0.5 rounded-lg bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 text-xs font-bold">✓ Versée</span>
+                            {% else %}
+                            <span class="inline-block px-2 py-0.5 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-xs font-bold">⏳ En attente</span>
+                            {% endif %}
+                        </td>
                         <td class="px-4 py-3 text-gray-400">{{ r.observation }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Aucun acte sur cette période.</td></tr>
+                    <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun acte sur cette période.</td></tr>
                     {% endfor %}
                 </tbody>
                 {% if report.rows %}
@@ -88,6 +104,10 @@
                         <td class="px-4 py-3" colspan="4">TOTAL</td>
                         <td class="px-4 py-3 text-right">{{ report.total_billed_txt }}</td>
                         <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400">{{ report.total_share_txt }}</td>
+                        <td class="px-4 py-3 text-center text-xs">
+                            <span class="text-brand-600 dark:text-brand-400">Versée : {{ report.total_paid_txt }}</span><br>
+                            <span class="text-amber-500">Reste : {{ report.total_unpaid_txt }}</span>
+                        </td>
                         <td></td>
                     </tr>
                 </tfoot>

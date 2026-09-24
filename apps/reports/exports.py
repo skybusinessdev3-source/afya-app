@@ -362,19 +362,21 @@ def _xl_sheet(titre, periode_txt, columns, rows, total_row, widths):
 # ================= PRESCRIPTEUR =================
 
 PRESCRIBER_COLUMNS = ['Date', 'Activité', 'Patient', 'Détail',
-                      'Montant ($)', 'Part ($)', 'Observation']
-PRESCRIBER_WIDTHS = [12, 16, 30, 34, 14, 14, 30]
+                      'Montant ($)', 'Part ($)', 'Part versée ?', 'Observation']
+PRESCRIBER_WIDTHS = [12, 16, 30, 34, 14, 14, 16, 30]
 
 
 def _prescriber_rows(report):
     return [[r['date_txt'], r['activite'], r['patient'], r['detail'],
-             r['montant_txt'], r['part_txt'], r['observation'] or '']
+             r['montant_txt'], r['part_txt'], r['part_statut'],
+             r['observation'] or '']
             for r in report['rows']]
 
 
 def build_prescriber_excel(report):
-    """Excel du rapport individuel d'un prescripteur (Observation toujours présente)."""
-    total_row = ['TOTAL', '', '', '', report['total_billed_txt'], report['total_share_txt'], '']
+    """Excel du rapport individuel d'un prescripteur (statut de versement + observation)."""
+    total_row = ['TOTAL', '', '', '', report['total_billed_txt'], report['total_share_txt'],
+                 f"Versée : {report['total_paid_txt']} — Reste : {report['total_unpaid_txt']}", '']
     return _xl_sheet(f"RAPPORT PRESCRIPTEUR — {report['name']}",
                      report['periode_txt'],
                      PRESCRIBER_COLUMNS, _prescriber_rows(report),
@@ -390,9 +392,10 @@ def build_prescriber_pdf(report):
         Paragraph(f"RAPPORT PRESCRIPTEUR — {report['name']}", PDF_STYLES['sub']),
         Paragraph(f"Période : {report['periode_txt']}", PDF_STYLES['period']),
     ]
-    total_row = ['TOTAL', '', '', '', report['total_billed_txt'], report['total_share_txt'], '']
+    total_row = ['TOTAL', '', '', '', report['total_billed_txt'], report['total_share_txt'],
+                 f"Versée : {report['total_paid_txt']} — Reste : {report['total_unpaid_txt']}", '']
     el.append(_pdf_table(PRESCRIBER_COLUMNS, _prescriber_rows(report),
-                         total_row, wrap_cols=(2, 3, 6)))
+                         total_row, wrap_cols=(2, 3, 7)))
     doc.build(el)
     buf.seek(0)
     return buf.read()

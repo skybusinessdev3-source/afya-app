@@ -53,6 +53,10 @@ def _page(request, categories, title):
             'tariff': float(cfg.tariff_usd), 'pct': float(cfg.prescriber_pct),
         }
 
+    # Parts prescripteur pas encore marquées « versées » (mois affiché)
+    parts_attente = [r for r in records
+                     if r.prescriber_amount_usd > 0 and not r.prescriber_paid]
+
     return render(request, 'medicine/index.html', {
         'page_title': title,
         'month_label': today.strftime('%B %Y'),
@@ -64,6 +68,8 @@ def _page(request, categories, title):
         'medecins': medecins,
         'configs_medecins': json.dumps(configs_medecins),
         'records': records,
+        'parts_attente_count': len(parts_attente),
+        'parts_attente_total': sum((r.part_presc_paye for r in parts_attente), Decimal('0')),
         'totals': {
             'billed': sum(r.amount_usd for r in records),
             'prescriber': sum((r.part_presc_paye for r in records), Decimal('0')),
@@ -111,6 +117,8 @@ def record_create(request):
                 return JsonResponse({'success': False, 'message': "Médecin introuvable."}, status=404)
         prescriber_name = str(prescriber) if prescriber else data.get('prescriber_name', '').strip()
 
+        # Le prescripteur peut avoir déjà reçu sa part le jour même (case à cocher)
+        part_deja_versee = bool(data.get('prescriber_paid'))
         record = MedicineRecord.objects.create(
             patient=patient,
             category=data['category'],
@@ -121,6 +129,8 @@ def record_create(request):
             amount_original=amount,
             currency_original=currency,
             status=MedicineRecord.Status.DONE,
+            prescriber_paid=part_deja_versee,
+            prescriber_paid_on=op_date if part_deja_versee else None,
             observation=data.get('observation', ''),
             created_by=request.user,
         )
@@ -172,5 +182,41 @@ def record_create(request):
         })
     except (Patient.DoesNotExist, KeyError):
         return JsonResponse({'success': False, 'message': "Patient introuvable."}, status=404)
+    except (InvalidOperation, ValueError):
+        return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)
+
+@login_required
+@require_POST
+@transaction.atomic
+def med_prescriber_paid(request):
+    """Marque la part prescripteur d'une ou plusieurs prestations comme versée
+    (ou non). Réservé aux responsables — c'est un mouvement de caisse."""
+    if not can_backdate(request.user):
+        return JsonResponse({'success': False,
+                             'message': "Réservé aux responsables."}, status=403)
+    try:
+        data = json.loads(request.body)
+        ids = [int(i) for i in data.get('ids', [])]
+        paid = bool(data.get('paid', True))
+        if not ids:
+            return JsonResponse({'success': False,
+                                 'message': "Aucune prestation visée."}, status=400)
+        records = list(MedicineRecord.objects.filter(id__in=ids))
+        if not records:
+            return JsonResponse({'success': False,
+                                 'message': "Prestations introuvables."}, status=404)
+        today = timezone.localdate()
+        for r in records:
+            r.prescriber_paid = paid
+            r.prescriber_paid_on = today if paid else None
+            r.save(update_fields=['prescriber_paid', 'prescriber_paid_on'])
+            log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+                      module='medicine', obj=r, ip_address=get_client_ip(request))
+        return JsonResponse({
+            'success': True,
+            'message': (f"Part prescripteur marquée « versée » ({len(records)} prestation(s))."
+                        if paid else
+                        f"Part prescripteur remise « en attente » ({len(records)} prestation(s))."),
+        })
     except (InvalidOperation, ValueError):
         return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)

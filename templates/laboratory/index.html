@@ -53,6 +53,12 @@
                 <input id="l-prescriber" type="text" placeholder="Prescripteur (Dr. externe accepté)…"
                        class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
 
+                <!-- Part prescripteur déjà versée le jour même -->
+                <label class="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-900 cursor-pointer text-sm">
+                    <input id="l-prescriber-paid" type="checkbox" class="w-4 h-4 mt-0.5 accent-brand-600">
+                    <span>Le prescripteur <b>a déjà reçu sa part</b> (versée aujourd'hui)</span>
+                </label>
+
                 <!-- Montant facturé (AUTO, recalculé serveur) -->
                 <div class="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 text-sm">
                     <span class="text-gray-400 shrink-0">Facturé <span id="l-count" class="text-xs"></span></span>
@@ -130,6 +136,17 @@
                 {% endfor %}
             </div>
             {% endif %}
+            {% if parts_attente_count %}
+            <div class="mx-4 mt-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex items-start gap-3">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></i>
+                <div class="text-sm">
+                    <b class="text-amber-700 dark:text-amber-300">{{ parts_attente_count }} part(s) prescripteur pas encore marquée(s) « versée » ce mois — {{ parts_attente_total }} $ au total.</b>
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                        Si un prescripteur a déjà reçu son pourcentage, cliquez « Marquer versée » sur la ligne concernée pour que les rapports ne l'affichent plus comme à verser.
+                    </p>
+                </div>
+            </div>
+            {% endif %}
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
@@ -165,7 +182,22 @@
                             <td class="px-4 py-3 text-right font-bold {% if g.debt > 0 %}text-red-500{% else %}text-gray-300 dark:text-gray-600{% endif %}">
                                 {% if g.debt > 0 %}{{ g.debt }} ${% else %}—{% endif %}
                             </td>
-                            <td class="px-4 py-3 text-right text-gray-400">{{ g.prescriber_share }} $</td>
+                            <td class="px-4 py-3 text-right text-gray-400">
+                                {{ g.prescriber_share }} $
+                                {% if g.prescriber_share > 0 %}
+                                    {% if g.prescriber_paid_all %}
+                                    <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded-md bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 text-[10px] font-bold">✓ versée</span>
+                                    {% elif can_backdate %}
+                                    <button onclick="event.stopPropagation(); marquerPartLabo({{ g.ids }})"
+                                            title="Marquer la part prescripteur comme versée"
+                                            class="mt-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-bold hover:bg-amber-200 dark:hover:bg-amber-900 transition">
+                                        Marquer versée
+                                    </button>
+                                    {% else %}
+                                    <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-bold">en attente</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
                             <td class="px-4 py-3 text-right text-gray-400">{{ g.lab_share }} $</td>
                             <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ g.center_share }} $</td>
                         </tr>
@@ -287,6 +319,19 @@ function toggleLabDetail(id) {
     row.classList.toggle('hidden');
     const chev = document.getElementById('chev-' + id);
     if (chev) chev.style.transform = row.classList.contains('hidden') ? '' : 'rotate(90deg)';
+}
+
+/* ================= PART PRESCRIPTEUR VERSÉE ================= */
+async function marquerPartLabo(ids) {
+    if (!confirm("Confirmer : le prescripteur a reçu sa part pour cette ligne ?")) return;
+    const res = await fetch("{% url 'laboratory:prescriber_paid' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ ids: ids, paid: true }),
+    });
+    const data = await res.json();
+    alert((data.success ? '✓ ' : '✗ ') + data.message);
+    if (data.success) location.reload();
 }
 
 /* ================= SÉLECTION PATIENT ================= */
@@ -463,6 +508,7 @@ async function submitLab(btn) {
             amount_paid2: (document.getElementById('l-paid2') || {}).value || '0',
             paid_currency2: (document.getElementById('l-paid-currency2') || {}).value || '',
         paid_currency: document.getElementById('l-paid-currency').value,
+        prescriber_paid: document.getElementById('l-prescriber-paid').checked,
         observation: document.getElementById('l-obs').value,
     };
 

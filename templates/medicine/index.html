@@ -52,6 +52,12 @@
                 <input id="m-prescriber" type="text" placeholder="Nom du prescripteur externe…"
                        class="hidden w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
 
+                <!-- Part prescripteur déjà versée le jour même -->
+                <label class="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-900 cursor-pointer text-sm">
+                    <input id="m-prescriber-paid" type="checkbox" class="w-4 h-4 mt-0.5 accent-brand-600">
+                    <span>Le prescripteur <b>a déjà reçu sa part</b> (versée aujourd'hui)</span>
+                </label>
+
                 <div class="flex gap-2">
                     <input id="m-amount" type="number" min="0" step="0.01" placeholder="Montant facturé *"
                            class="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" oninput="updatePreview()">
@@ -107,6 +113,17 @@
                 </h3>
                 <p class="text-xs text-gray-400 mt-0.5">Parts calculées sur les montants réellement encaissés (prorata des paiements).</p>
             </div>
+            {% if parts_attente_count %}
+            <div class="mx-4 mt-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex items-start gap-3">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></i>
+                <div class="text-sm">
+                    <b class="text-amber-700 dark:text-amber-300">{{ parts_attente_count }} part(s) prescripteur pas encore marquée(s) « versée » ce mois — {{ parts_attente_total }} $ au total.</b>
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                        Si un prescripteur a déjà reçu son pourcentage, cliquez « Marquer versée » sur la ligne concernée pour que les rapports ne l'affichent plus comme à verser.
+                    </p>
+                </div>
+            </div>
+            {% endif %}
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
@@ -128,7 +145,22 @@
                             <td class="px-4 py-3 text-gray-400">{{ r.get_category_display }}{% if r.prestation_other %} — {{ r.prestation_other }}{% endif %}</td>
                             <td class="px-4 py-3 text-gray-400">{{ r.prescriber_name|default:"—" }}</td>
                             <td class="px-4 py-3 text-right font-semibold">{{ r.amount_original }} {{ r.currency_original }}</td>
-                            <td class="px-4 py-3 text-right text-gray-400">{{ r.part_presc_paye }} $</td>
+                            <td class="px-4 py-3 text-right text-gray-400">
+                                {{ r.part_presc_paye }} $
+                                {% if r.prescriber_amount_usd > 0 %}
+                                    {% if r.prescriber_paid %}
+                                    <br><span class="inline-block mt-0.5 px-1.5 py-0.5 rounded-md bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 text-[10px] font-bold">✓ versée</span>
+                                    {% elif can_backdate %}
+                                    <br><button onclick="marquerPartMed([{{ r.id }}])"
+                                            title="Marquer la part prescripteur comme versée"
+                                            class="mt-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-bold hover:bg-amber-200 dark:hover:bg-amber-900 transition">
+                                        Marquer versée
+                                    </button>
+                                    {% else %}
+                                    <br><span class="inline-block mt-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-bold">en attente</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
                             <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400 font-semibold">{{ r.part_centre_paye }} $</td>
                         </tr>
                         {% empty %}
@@ -294,6 +326,7 @@ async function submitMedicine(btn) {
             amount_paid2: (document.getElementById('m-paid2') || {}).value || '0',
             paid_currency2: (document.getElementById('m-paid-currency2') || {}).value || '',
         paid_currency: document.getElementById('m-paid-currency').value,
+        prescriber_paid: document.getElementById('m-prescriber-paid').checked,
         observation: document.getElementById('m-obs').value,
     };
 
@@ -317,6 +350,19 @@ async function submitMedicine(btn) {
         feedback.textContent = '✗ ' + data.message;
     }
     btn.disabled = false;
+}
+
+/* ================= PART PRESCRIPTEUR VERSÉE ================= */
+async function marquerPartMed(ids) {
+    if (!confirm("Confirmer : le prescripteur a reçu sa part pour cette prestation ?")) return;
+    const res = await fetch("{% url 'medicine:prescriber_paid' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ ids: ids, paid: true }),
+    });
+    const data = await res.json();
+    alert((data.success ? '✓ ' : '✗ ') + data.message);
+    if (data.success) location.reload();
 }
 
 /* ================= MODAL PATIENT ================= */
