@@ -48,7 +48,9 @@ class Patient(TimeStampedModel):
 
     @property
     def sessions_done(self):
-        return self.sessions.filter(status='DONE').count()
+        # Seules les vraies SÉANCES kiné comptent : évaluation, consultation,
+        # laboratoire, autre… ne doivent PAS faire avancer le compteur.
+        return self.sessions.filter(status='DONE', motif='KINE').count()
 
     @property
     def sessions_remaining(self):

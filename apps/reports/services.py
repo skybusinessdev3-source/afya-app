@@ -150,6 +150,9 @@ def daily_report(d):
         # Pas une séance de kiné (évaluation, labo, consultation…) :
         # on affiche le MOTIF, jamais un compteur de séances « 1/0 ».
         if session.motif != Session.Motif.KINE:
+            # « Autre » → afficher la PRÉCISION saisie, pas le mot « Autre »
+            if session.motif == Session.Motif.OTHER and session.motif_other.strip():
+                return f"_{session.motif_other.strip()}_"
             return f"_{session.get_motif_display()}_"
         payees = _seances_payees(fin[patient.id]['due'], fin[patient.id]['paid'],
                                  patient.sessions_prescribed)
@@ -160,16 +163,26 @@ def daily_report(d):
             return f"_{session.get_motif_display()}_"
         return f"_{patient.sessions_done}/{total}_"
 
+    # Une SEULE ligne par patient, même s'il a plusieurs passages ce jour
+    # (ex. solde de séances + évaluation) : les libellés se combinent,
+    # le montant total du jour n'est affiché qu'une fois.
     patients_lines = []
-    for i, s in enumerate(sessions, 1):
-        pays = [p for p in payments if p.invoice and p.invoice.patient_id == s.patient_id]
+    par_patient = {}
+    for s in sessions:
+        info = par_patient.setdefault(s.patient_id,
+                                      {'patient': s.patient, 'labels': []})
+        label = _seances_label(s)
+        if label not in info['labels']:
+            info['labels'].append(label)
+    for i, (pid, info) in enumerate(par_patient.items(), 1):
+        pays = [p for p in payments if p.invoice and p.invoice.patient_id == pid]
         amounts = {'USD': sum(p.amount_original for p in pays if p.currency_original == 'USD'),
                    'FC': sum(p.amount_original for p in pays if p.currency_original == 'FC')}
         money = f" : {_fmt(amounts)}" if (amounts['USD'] or amounts['FC']) else ""
-        seances = _seances_label(s)
-        prods = _produits_label(s.patient_id)
+        prods = _produits_label(pid)
         detail = f" ; {prods}" if prods else ""
-        patients_lines.append(f"{i}. {s.patient.full_name} ({seances}{money}{detail})")
+        seances = ' + '.join(info['labels'])
+        patients_lines.append(f"{i}. {info['patient'].full_name} ({seances}{money}{detail})")
 
     # --- Patients des AUTRES services (labo, médecine, domicile, pharmacie) ---
     # Pas de séance au centre ce jour → ils doivent quand même apparaître au rapport.

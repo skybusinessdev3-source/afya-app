@@ -63,9 +63,9 @@ def lab_page(request):
             g['billed_par_invoice'][r.invoice_id] = (
                 g['billed_par_invoice'].get(r.invoice_id, Decimal('0')) + r.amount_usd)
         rt = ratio_paye(r.invoice)          # parts sur l'ENCAISSÉ, pas le facturé
-        g['prescriber_share'] += r.prescriber_amount_usd * rt
-        g['lab_share'] += r.lab_team_amount_usd * rt
-        g['center_share'] += r.center_amount_usd * rt
+        g['prescriber_share'] += (r.prescriber_amount_usd * rt).quantize(Decimal('0.01'))
+        g['lab_share'] += (r.lab_team_amount_usd * rt).quantize(Decimal('0.01'))
+        g['center_share'] += (r.center_amount_usd * rt).quantize(Decimal('0.01'))
     groups = sorted(groups.values(), key=lambda g: (g['date'], g['patient']), reverse=True)
 
     # --- Payé / Reste par groupe via les factures liées ---
@@ -89,7 +89,7 @@ def lab_page(request):
         if p is None:
             p = presc[k] = {'name': r.prescriber_name.strip() or '— Non renseigné —',
                             'share': Decimal('0'), 'exams': 0, 'patients': set()}
-        p['share'] += r.prescriber_amount_usd * ratio_paye(r.invoice)
+        p['share'] += (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))
         p['exams'] += 1
         p['patients'].add(r.patient_id)
     prescriber_summary = sorted(
@@ -109,9 +109,11 @@ def lab_page(request):
             'billed': sum(r.amount_usd for r in records),
             'paid': sum((g['paid'] for g in groups), Decimal('0')),
             'debt': sum((g['debt'] for g in groups), Decimal('0')),
-            'prescriber': sum(r.prescriber_amount_usd * ratio_paye(r.invoice) for r in records),
-            'lab_team': sum(r.lab_team_amount_usd * ratio_paye(r.invoice) for r in records),
-            'center': sum(r.center_amount_usd * ratio_paye(r.invoice) for r in records),
+            # Totaux = somme des parts déjà arrondies des groupes : l'affichage
+            # est cohérent au centime (jamais de '176,6000000000000000000003').
+            'prescriber': sum((g['prescriber_share'] for g in groups), Decimal('0')),
+            'lab_team': sum((g['lab_share'] for g in groups), Decimal('0')),
+            'center': sum((g['center_share'] for g in groups), Decimal('0')),
         },
     }
     return render(request, 'laboratory/index.html', context)
