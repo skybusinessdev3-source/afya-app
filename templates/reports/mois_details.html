@@ -27,11 +27,24 @@
         </form>
     </div>
 
-    <p id="aucun-resultat" class="hidden text-center text-sm text-gray-400 py-6">
-        Aucun résultat pour cette recherche dans {{ report.label }}.
-    </p>
+    <!-- ===== État vide animé ===== -->
+    <div id="aucun-resultat" class="hidden flex-col items-center justify-center py-14 text-center">
+        <div class="relative w-24 h-24 mb-5">
+            <span class="absolute inset-0 rounded-full bg-brand-500/15 animate-ping-slow"></span>
+            <span class="absolute inset-2 rounded-full bg-brand-500/10 animate-ping-slow" style="animation-delay:.6s"></span>
+            <div class="relative w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center animate-float">
+                <i data-lucide="search-x" class="w-10 h-10 text-gray-400"></i>
+            </div>
+        </div>
+        <p class="font-bold text-lg">Aucun résultat</p>
+        <p class="text-sm text-gray-400 mt-1">
+            Aucun patient ni mouvement ne correspond à
+            « <span id="q-affiche" class="font-semibold text-gray-600 dark:text-gray-300"></span> »
+            en {{ report.label }}.
+        </p>
+    </div>
 
-    <!-- ===== Un carte par jour ===== -->
+    <!-- ===== Une carte par jour ===== -->
     {% for j in report.jours %}
     <div class="jour-card bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up overflow-hidden"
          data-jour data-date="{{ j.label }}">
@@ -99,11 +112,63 @@
         Aucune activité enregistrée en {{ report.label }}.
     </div>
     {% endfor %}
+
+    <!-- ===== Totaux du mois ===== -->
+    {% if report.jours %}
+    <div id="carte-totaux" class="bg-white dark:bg-gray-900 rounded-2xl border-2 border-brand-500/50 animate-fade-up overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-brand-50 dark:bg-brand-950/40">
+            <h3 class="font-bold flex items-center gap-2 text-brand-700 dark:text-brand-400">
+                <i data-lucide="calculator" class="w-5 h-5"></i> Totaux de {{ report.label }}
+            </h3>
+        </div>
+        <div class="p-4 grid sm:grid-cols-2 gap-x-8 gap-y-1.5 text-sm">
+            <div class="flex justify-between"><span class="text-gray-400">Centre (séances/consultations)</span><b>{{ report.totaux.centre }}</b></div>
+            <div class="flex justify-between"><span class="text-gray-400">Médecine générale</span><b>{{ report.totaux.med_gen }}</b></div>
+            <div class="flex justify-between"><span class="text-gray-400">Médecine manuelle</span><b>{{ report.totaux.med_man }}</b></div>
+            <div class="flex justify-between"><span class="text-gray-400">Pharmacie</span><b>{{ report.totaux.pharmacie }}</b></div>
+            <div class="flex justify-between"><span class="text-gray-400">Laboratoire</span><b>{{ report.totaux.laboratoire }}</b></div>
+            <div class="flex justify-between"><span class="text-gray-400">Soins à domicile</span><b>{{ report.totaux.domicile }}</b></div>
+        </div>
+        <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-800 grid sm:grid-cols-3 gap-2 text-sm">
+            <div class="flex justify-between sm:flex-col sm:gap-0.5">
+                <span class="text-gray-400 text-xs font-semibold uppercase">Total perçus</span>
+                <b class="text-brand-600 dark:text-brand-400 text-base">{{ report.totaux.total_percus }}</b>
+            </div>
+            <div class="flex justify-between sm:flex-col sm:gap-0.5">
+                <span class="text-gray-400 text-xs font-semibold uppercase">Total dépenses</span>
+                <b class="text-red-500 text-base">{{ report.totaux.total_depenses }}</b>
+            </div>
+            <div class="flex justify-between sm:flex-col sm:gap-0.5">
+                <span class="text-gray-400 text-xs font-semibold uppercase">Solde général</span>
+                <b class="text-base">{{ report.totaux.solde }}</b>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<style>
+@keyframes ping-slow {
+    0% { transform: scale(1); opacity: .5; }
+    80%, 100% { transform: scale(1.7); opacity: 0; }
+}
+.animate-ping-slow { animation: ping-slow 2.2s cubic-bezier(0, 0, .2, 1) infinite; }
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+.animate-float { animation: float 3s ease-in-out infinite; }
+mark { background: rgb(252 211 77); color: inherit; border-radius: .25rem; padding: 0 .125rem; }
+.dark mark { background: rgb(245 158 11 / .55); }
+</style>
 <script>
+function surligne(html, q) {
+    const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return html.replace(new RegExp('(' + esc + ')', 'gi'), '<mark>$1</mark>');
+}
+
 function filtrer() {
     const q = document.getElementById('search').value.trim().toLowerCase();
     let joursVisibles = 0;
@@ -111,16 +176,25 @@ function filtrer() {
         let lignesVisibles = 0;
         const dateMatch = q && (card.dataset.date || '').toLowerCase().includes(q);
         card.querySelectorAll('.ligne-patient').forEach(li => {
+            if (li.dataset.orig === undefined) li.dataset.orig = li.innerHTML;
+            const orig = li.dataset.orig;
             const show = !q || dateMatch || li.textContent.toLowerCase().includes(q);
             li.style.display = show ? '' : 'none';
-            if (show) lignesVisibles++;
+            if (show) {
+                lignesVisibles++;
+                li.innerHTML = (q && !dateMatch) ? surligne(orig, q) : orig;
+            }
         });
         const cardVisible = !q || lignesVisibles > 0;
         card.style.display = cardVisible ? '' : 'none';
         if (cardVisible) joursVisibles++;
     });
     const total = document.querySelectorAll('[data-jour]').length;
-    document.getElementById('aucun-resultat').classList.toggle('hidden', !q || joursVisibles > 0 || total === 0);
+    const vide = document.getElementById('aucun-resultat');
+    const montrerVide = q && joursVisibles === 0 && total > 0;
+    vide.classList.toggle('hidden', !montrerVide);
+    vide.classList.toggle('flex', montrerVide);
+    document.getElementById('q-affiche').textContent = document.getElementById('search').value.trim();
 }
 </script>
 {% endblock %}

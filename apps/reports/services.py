@@ -325,7 +325,28 @@ def month_days_report(year, month):
             r['patients_lines'] = _clean(r['patients_lines'])
             r['expense_lines'] = _clean(r['expense_lines'])
             jours.append(r)
-    return {'label': f"{MOIS_FR[month]} {year}", 'jours': jours}
+
+    # Totaux du mois entier : par activité + total général (bas de page)
+    payments = Payment.objects.filter(date__year=year, date__month=month,
+                                      status=Payment.Status.VALID)
+    expenses = Expense.objects.filter(date__year=year, date__month=month)
+    vent = _ventilation(payments)
+    exp_total = _sums_by_currency(expenses)
+    total = _sums_by_currency(payments)
+    totaux = {
+        'centre': _fmt(vent['centre']),
+        'med_gen': _fmt(vent['medecine_generale']),
+        'med_man': _fmt(vent['medecine_manuelle']),
+        'pharmacie': _fmt(vent['pharmacie']),
+        'laboratoire': _fmt(vent['laboratoire']),
+        'domicile': _fmt(vent['domicile']),
+        'total_percus': _fmt(total),
+        'total_depenses': _fmt(exp_total),
+        'solde': _fmt({'USD': total['USD'] - exp_total['USD'],
+                       'FC': total['FC'] - exp_total['FC']}),
+    }
+    return {'label': f"{MOIS_FR[month]} {year}", 'jours': jours,
+            'totaux': totaux}
 
 
 def monthly_report(year, month):
