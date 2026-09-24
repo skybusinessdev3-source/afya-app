@@ -24,9 +24,11 @@ def get_client_ip(request):
 
 
 def _norm_prescriber(name):
-    """Clé de regroupement insensible à la casse, aux espaces et aux points
-    (« Dr.Mutamba Stany » = « Dr. Mutamba Stany »)."""
-    return ''.join(ch for ch in (name or '').lower() if ch.isalnum())
+    """Clé de regroupement : casse, espaces, points ET titre ignorés
+    (« Docteur Mutamba Stany » = « Dr. Mutamba Stany » = « Mutamba Stany »).
+    Délègue à la normalisation canonique des rapports (source unique)."""
+    from apps.reports.services import _norm_prescriber_name
+    return ''.join(ch for ch in _norm_prescriber_name(name) if ch.isalnum())
 
 
 @login_required

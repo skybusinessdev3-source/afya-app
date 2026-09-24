@@ -580,23 +580,42 @@ ACTIVITES = [
 ]
 
 
+TITRES_PRESCRIPTEUR = ('dr', 'docteur', 'docteure', 'doct', 'pr', 'prof', 'professeur')
+
+
+def _canon_prescriber(name):
+    """Uniformise le titre pour l'AFFICHAGE :
+    « Docteur Mutamba Stany » / « Dr Mutamba Stany » → « Dr. Mutamba Stany »."""
+    txt = ' '.join(str(name or '').split())
+    parts = txt.split(None, 1)
+    if len(parts) == 2 and parts[0].lower().rstrip('.') in TITRES_PRESCRIPTEUR:
+        return f"Dr. {parts[1]}"
+    return txt
+
+
 def _norm_prescriber_name(name):
     """Normalise un nom de prescripteur pour le regroupement :
-    strip, espaces multiples → 1, casse-insensible.
+    casse, espaces, points ET titre ignorés —
+    « Docteur Mutamba Stany » = « Dr. Mutamba Stany » = « Mutamba Stany ».
     (« / » → espace : la clé transite dans l'URL.)"""
     if not name:
         return ''
-    return ' '.join(str(name).replace('/', ' ').split()).lower()
+    txt = ' '.join(str(name).replace('/', ' ').replace('.', ' ').split()).lower()
+    mots = txt.split()
+    if mots and mots[0] in TITRES_PRESCRIPTEUR:
+        mots = mots[1:]                      # le titre ne fait pas partie de la clé
+    return ' '.join(mots)
 
 
 def _prescriber_display(record):
-    """Nom affiché : prescriber_name libre, sinon FK Staff, sinon placeholder."""
+    """Nom affiché : prescriber_name libre, sinon FK Staff, sinon placeholder.
+    Le titre est uniformisé (« Docteur X » → « Dr. X »)."""
     name = getattr(record, 'prescriber_name', '') or ''
     if name.strip():
-        return ' '.join(name.split())
+        return _canon_prescriber(name)
     prescriber = getattr(record, 'prescriber', None)
     if prescriber is not None:
-        return str(prescriber)
+        return _canon_prescriber(str(prescriber))
     return NON_RENSEIGNE
 
 
@@ -631,6 +650,9 @@ def prescribers_summary(d1, d2):
             'med_count': 0, 'med_share': Decimal('0'),
             'paid_share': Decimal('0'), 'unpaid_share': Decimal('0'),
         })
+        # Variantes du même prescripteur fusionnées : préfère la forme « Dr. … »
+        if name.startswith('Dr. ') and not entry['name'].startswith('Dr. '):
+            entry['name'] = name
         entry[f'{kind}_count'] += 1
         # Part sur l'ENCAISSÉ, pas le facturé (arrondie comme au rapport détaillé)
         part = ((record.prescriber_amount_usd or Decimal('0'))
@@ -678,7 +700,9 @@ def prescriber_report(key, d1, d2):
         name = _prescriber_display(r)
         if _norm_prescriber_name(name) != key_norm:
             continue
-        display_name = display_name or name
+        if display_name is None or (name.startswith('Dr. ')
+                                    and not display_name.startswith('Dr. ')):
+            display_name = name
         rows.append({
             'date': r.date, 'date_txt': _date_txt(r.date),
             'activite': 'Labo',
@@ -701,7 +725,9 @@ def prescriber_report(key, d1, d2):
         name = _prescriber_display(r)
         if _norm_prescriber_name(name) != key_norm:
             continue
-        display_name = display_name or name
+        if display_name is None or (name.startswith('Dr. ')
+                                    and not display_name.startswith('Dr. ')):
+            display_name = name
         rows.append({
             'date': r.date, 'date_txt': _date_txt(r.date),
             'activite': 'Méd. manuelle' if _med_family(r.category) == 'manuelle' else 'Méd. générale',
