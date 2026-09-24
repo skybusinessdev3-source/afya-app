@@ -783,9 +783,24 @@ def _factures_centre_par_jour(patient_ids, d1, d2):
     return res
 
 
-def _activity_result(slug, titre, d1, d2, columns, rows, totals_map, total_usd, total_qty=None):
+def _top_chart(compteur, titre, unite, limit=10):
+    """Données du graphique « top » d'une activité (barres horizontales).
+    compteur : dict libellé → nombre. None si vide."""
+    items = [(k, v) for k, v in compteur.items() if v]
+    if not items:
+        return None
+    items.sort(key=lambda x: (-x[1], x[0].casefold()))
+    items = items[:limit]
+    return {'titre': titre, 'unite': unite,
+            'labels': [k for k, _ in items],
+            'values': [v for _, v in items]}
+
+
+def _activity_result(slug, titre, d1, d2, columns, rows, totals_map, total_usd,
+                     total_qty=None, chart=None):
     """Assemble le dict prêt pour template et exports.
-    totals_map : {index_colonne: texte} pour la ligne TOTAL."""
+    totals_map : {index_colonne: texte} pour la ligne TOTAL.
+    chart : dict {_top_chart} pour le graphique en tête de page."""
     total_row = ['TOTAL'] + [''] * (len(columns) - 1)
     for idx, txt in totals_map.items():
         total_row[idx] = txt
@@ -799,6 +814,7 @@ def _activity_result(slug, titre, d1, d2, columns, rows, totals_map, total_usd, 
         'total_usd': total_usd,
         'total_usd_txt': _fmt_nombre(total_usd),
         'total_qty': total_qty,
+        'chart': chart,
     }
 
 
@@ -817,6 +833,7 @@ def activity_report(slug, d1, d2):
         columns = ['Date', 'Patient', 'Motif / Service', 'Facturé ($)', 'Payé ($)']
         rows = []
         tot_fact, tot_paye = Decimal('0'), Decimal('0')
+        par_motif = defaultdict(int)
         for s in sessions:
             invs = factures.get((s.patient_id, s.date), [])
             if invs:
@@ -827,6 +844,7 @@ def activity_report(slug, d1, d2):
             else:
                 fact, paye = Decimal('0'), Decimal('0')
             detail = s.get_motif_display()
+            par_motif[detail] += 1
             if s.service_id:
                 detail += f" ({s.service.name})"
             if s.motif == Session.Motif.OTHER and s.motif_other:
@@ -839,7 +857,8 @@ def activity_report(slug, d1, d2):
         return _activity_result(slug, 'RAPPORT CENTRE — SÉANCES & CONSULTATIONS',
                                 d1, d2, columns, rows,
                                 {3: _fmt_nombre(tot_fact), 4: _fmt_nombre(tot_paye)},
-                                tot_paye)
+                                tot_paye,
+                                chart=_top_chart(par_motif, 'Répartition par motif', 'actes'))
 
     if slug == 'pharmacie':
         from apps.finance.models import Invoice
@@ -861,6 +880,7 @@ def activity_report(slug, d1, d2):
                    'Prix unit. ($)', 'Facturé ($)', 'Payé ($)']
         rows = []
         tot_fact, tot_paye, total_qty = Decimal('0'), Decimal('0'), 0
+        par_produit = defaultdict(int)
         for v in ventes:
             invs_j = par_jour.get((v.patient_id, v.date), [])
             paye_j = sum((i.amount_paid_usd for i in invs_j), Decimal('0'))
@@ -870,6 +890,7 @@ def activity_report(slug, d1, d2):
             tot_fact += v.total_usd
             tot_paye += paye
             total_qty += v.quantity
+            par_produit[v.product.name] += v.quantity
             rows.append([_date_txt(v.date),
                          v.patient.full_name if v.patient else 'Client comptant',
                          v.product.name, str(v.quantity),
@@ -879,20 +900,23 @@ def activity_report(slug, d1, d2):
                                 d1, d2, columns, rows,
                                 {3: str(total_qty), 5: _fmt_nombre(tot_fact),
                                  6: _fmt_nombre(tot_paye)},
-                                tot_paye, total_qty=total_qty)
+                                tot_paye, total_qty=total_qty,
+                                chart=_top_chart(par_produit, 'Produits les plus vendus', 'vendus'))
 
     if slug == 'labo':
         # Groupé par patient : le détail examen par examen reste visible
         # dans la page Laboratoire ; ici on veut une synthèse lisible.
         records = (LaboratoryRecord.objects
                    .filter(date__gte=d1, date__lte=d2)
-                   .select_related('patient', 'invoice')
+                   .select_related('patient', 'exam', 'invoice')
                    .prefetch_related('invoice__payments'))
         columns = ['Patient', 'Examens (nb)', 'Facturé ($)', 'Payé ($)']
         par_patient = {}
+        par_examen = defaultdict(int)
         for r in records:
             paye = (r.amount_usd * ratio_paye(r.invoice)).quantize(
                 Decimal('0.01'), rounding=ROUND_HALF_UP)
+            par_examen[r.exam.name if r.exam_id else '—'] += 1
             e = par_patient.setdefault(r.patient_id, {
                 'nom': r.patient.full_name if r.patient else '—',
                 'nb': 0, 'fact': Decimal('0'), 'paye': Decimal('0')})
@@ -911,7 +935,8 @@ def activity_report(slug, d1, d2):
                                 d1, d2, columns, rows,
                                 {1: str(tot_nb), 2: _fmt_nombre(tot_fact),
                                  3: _fmt_nombre(tot_paye)},
-                                tot_paye, total_qty=tot_nb)
+                                tot_paye, total_qty=tot_nb,
+                                chart=_top_chart(par_examen, 'Examens les plus demandés', 'examen(s)'))
 
     if slug in ('medecine-generale', 'medecine-manuelle'):
         famille = 'manuelle' if slug == 'medecine-manuelle' else 'generale'
@@ -925,10 +950,12 @@ def activity_report(slug, d1, d2):
                    'Facturé ($)', 'Payé ($)']
         rows = []
         tot_fact, tot_paye = Decimal('0'), Decimal('0')
+        par_prestation = defaultdict(int)
         for r in records:
             paye = (r.amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))
             tot_fact += r.amount_usd
             tot_paye += paye
+            par_prestation[r.get_category_display()] += 1
             rows.append([_date_txt(r.date), r.patient.full_name, _med_detail(r),
                          _prescriber_display(r), _fmt_nombre(r.amount_usd),
                          _fmt_nombre(paye)])
@@ -936,7 +963,8 @@ def activity_report(slug, d1, d2):
                  else 'RAPPORT MÉDECINE GÉNÉRALE')
         return _activity_result(slug, titre, d1, d2, columns, rows,
                                 {4: _fmt_nombre(tot_fact), 5: _fmt_nombre(tot_paye)},
-                                tot_paye)
+                                tot_paye,
+                                chart=_top_chart(par_prestation, 'Prestations les plus fréquentes', 'actes'))
 
     if slug == 'domicile':
         services_qs = (HomeCareService.objects
@@ -947,6 +975,7 @@ def activity_report(slug, d1, d2):
         columns = ['Date', 'Patient', 'Prestation', 'Médecin', 'Facturé ($)', 'Payé ($)']
         rows = []
         tot_fact, tot_paye = Decimal('0'), Decimal('0')
+        par_patient_dom = defaultdict(int)
         for s in services_qs:
             fact = (s.invoice.amount_usd
                     if s.invoice_id and s.invoice.status != 'CANCELLED' else None)
@@ -955,6 +984,7 @@ def activity_report(slug, d1, d2):
                 tot_fact += fact
             if paye:
                 tot_paye += paye
+            par_patient_dom[s.patient.full_name] += s.sessions_done or 0
             prestation = (f"Soins à domicile — {s.sessions_done}/{s.sessions_prescribed} "
                           f"séance(s)")
             rows.append([_date_txt(s.date), s.patient.full_name, prestation,
@@ -964,6 +994,7 @@ def activity_report(slug, d1, d2):
         return _activity_result(slug, 'RAPPORT SOINS À DOMICILE',
                                 d1, d2, columns, rows,
                                 {4: _fmt_nombre(tot_fact), 5: _fmt_nombre(tot_paye)},
-                                tot_paye)
+                                tot_paye,
+                                chart=_top_chart(par_patient_dom, 'Séances par patient', 'séances'))
 
     return None

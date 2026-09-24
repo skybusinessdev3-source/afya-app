@@ -23,6 +23,24 @@
         </p>
     </div>
 
+    <!-- ===== Graphique : le prescripteur le plus actif ===== -->
+    {% if chart %}
+    <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.05s">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+            <h3 class="font-bold flex items-center gap-2">
+                <i data-lucide="bar-chart-3" class="w-5 h-5 text-brand-600"></i>
+                {{ chart.titre }}
+            </h3>
+            <p class="text-xs text-gray-400 mt-0.5">La première barre (verte foncée) est le prescripteur le plus actif de la période.</p>
+        </div>
+        <div class="p-4">
+            <div class="relative h-72">
+                <canvas id="prescripteurs-chart"></canvas>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- ===== Tableau des prescripteurs ===== -->
     <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.1s">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800">
@@ -53,6 +71,11 @@
                                class="text-brand-600 dark:text-brand-400 hover:underline">
                                 {{ p.name }}
                             </a>
+                            {% if p.key == top_key %}
+                            <span class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 text-[10px] font-bold align-middle">
+                                <i data-lucide="crown" class="w-3 h-3"></i> Le plus actif
+                            </span>
+                            {% endif %}
                         </td>
                         <td class="px-4 py-3 text-center">{{ p.labo_count }}</td>
                         <td class="px-4 py-3 text-right">{{ p.labo_share_txt }}</td>
@@ -70,4 +93,50 @@
         </div>
     </div>
 </div>
+
+{% if chart %}
+{{ chart|json_script:"prescripteurs-chart-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const chart = JSON.parse(document.getElementById('prescripteurs-chart-data').textContent);
+    const dark = document.documentElement.classList.contains('dark');
+    const tickColor = dark ? '#9ca3af' : '#6b7280';
+    const colors = chart.values.map((_, i) =>
+        i === 0 ? '#00ad53' : (dark ? 'rgba(19,233,124,0.45)' : 'rgba(0,173,83,0.40)'));
+    new Chart(document.getElementById('prescripteurs-chart'), {
+        type: 'bar',
+        data: {
+            labels: chart.labels,
+            datasets: [{
+                data: chart.values,
+                backgroundColor: colors,
+                borderRadius: 8,
+                maxBarThickness: 26,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: { label: (c) => ` ${c.parsed.x} ${chart.unite}` }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { color: tickColor, precision: 0 },
+                    grid: { color: dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }
+                },
+                y: { ticks: { color: tickColor }, grid: { display: false } }
+            },
+            animation: { duration: 700, easing: 'easeOutQuart' }
+        }
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

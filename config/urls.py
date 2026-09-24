@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
-from apps.core.views import about_page, dashboard, landing, service_worker
+from apps.core.views import about_page, dashboard, global_search, landing, service_worker
 
 urlpatterns = [
     path('sw.js', service_worker, name='sw'),
@@ -27,6 +27,7 @@ urlpatterns = [
     path('a-propos/', about_page, name='about'),
     path('', landing, name='landing'),
     path('tableau-de-bord/', dashboard, name='dashboard'),
+    path('recherche/', global_search, name='global_search'),
 ]
 
 if settings.DEBUG:

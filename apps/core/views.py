@@ -3,9 +3,10 @@ from datetime import date as date_cls, timedelta
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
-from django.http import FileResponse
+from django.db.models import Q, Sum
+from django.http import FileResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
@@ -26,6 +27,50 @@ def service_worker(request):
                             content_type='application/javascript')
     response['Service-Worker-Allowed'] = '/'
     return response
+
+
+@login_required
+def global_search(request):
+    """Recherche globale (barre du header, Ctrl+K / Ctrl+F) :
+    patients, produits de la pharmacie et examens du laboratoire."""
+    q = (request.GET.get('q') or '').strip()
+    results = []
+    if len(q) >= 2:
+        from apps.patients.models import Patient
+        from apps.pharmacy.models import PharmacyProduct
+        from apps.settings_app.models import LabExam
+
+        for p in (Patient.objects.filter(is_active=True)
+                  .filter(Q(last_name__icontains=q)
+                          | Q(first_name__icontains=q)
+                          | Q(middle_name__icontains=q)
+                          | Q(phone__icontains=q))
+                  .order_by('last_name', 'first_name')[:6]):
+            results.append({
+                'cat': 'Patients', 'icon': 'user',
+                'label': p.full_name,
+                'sub': p.phone or '',
+                'url': reverse('patients:detail', args=[p.pk]),
+            })
+        for prod in (PharmacyProduct.objects
+                     .filter(is_active=True, name__icontains=q)
+                     .order_by('name')[:5]):
+            results.append({
+                'cat': 'Produits (pharmacie)', 'icon': 'pill',
+                'label': prod.name,
+                'sub': f"Stock : {prod.stock_available} — {prod.price_usd} $",
+                'url': reverse('pharmacy:products'),
+            })
+        for ex in (LabExam.objects
+                   .filter(is_active=True, name__icontains=q)
+                   .order_by('name')[:5]):
+            results.append({
+                'cat': 'Examens (laboratoire)', 'icon': 'microscope',
+                'label': ex.name,
+                'sub': f"{ex.price_usd} $",
+                'url': reverse('laboratory:home'),
+            })
+    return JsonResponse({'results': results})
 
 
 @login_required

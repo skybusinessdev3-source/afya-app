@@ -499,6 +499,17 @@
 
             <div class="flex items-center gap-2">
                 {% if user.is_authenticated %}
+                <!-- Recherche globale (Ctrl+K) -->
+                <button onclick="openGlobalSearch()" title="Recherche globale (Ctrl+K)"
+                        class="hidden md:flex items-center gap-2 px-3 py-2 w-56 lg:w-64 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-400 hover:border-brand-400 dark:hover:border-brand-600 hover:text-gray-500 dark:hover:text-gray-300 transition">
+                    <i data-lucide="search" class="w-4 h-4 shrink-0"></i>
+                    <span class="truncate">Rechercher…</span>
+                    <kbd class="ml-auto text-[10px] font-semibold border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 shrink-0">Ctrl K</kbd>
+                </button>
+                <button onclick="openGlobalSearch()" title="Recherche globale (Ctrl+K)"
+                        class="md:hidden w-10 h-10 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center">
+                    <i data-lucide="search" class="w-5 h-5"></i>
+                </button>
                 <!-- Cloche notifications -->
                 <div class="relative">
                     <button onclick="document.getElementById('notif-panel').classList.toggle('hidden')"
@@ -745,6 +756,128 @@
         </div>
     </div>
 </div>
+{% if user.is_authenticated %}
+<!-- ================= RECHERCHE GLOBALE (Ctrl+K / Ctrl+F) ================= -->
+<div id="search-modal" class="hidden fixed inset-0 z-[80]">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeGlobalSearch()"></div>
+    <div class="relative w-[94%] max-w-xl mx-auto mt-20 sm:mt-28 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 animate-pop-in overflow-hidden">
+        <div class="flex items-center gap-3 px-4 border-b border-gray-200 dark:border-gray-800">
+            <i data-lucide="search" class="w-5 h-5 text-gray-400 shrink-0"></i>
+            <input id="gs-input" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="Patient, produit, examen…"
+                   class="flex-1 py-4 bg-transparent outline-none text-sm placeholder-gray-400">
+            <kbd class="text-[10px] font-semibold text-gray-400 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5">Esc</kbd>
+        </div>
+        <div id="gs-results" class="max-h-80 overflow-y-auto"></div>
+        <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-800 text-[11px] text-gray-400 flex items-center gap-3">
+            <span><kbd class="border border-gray-300 dark:border-gray-600 rounded px-1">↑</kbd> <kbd class="border border-gray-300 dark:border-gray-600 rounded px-1">↓</kbd> naviguer</span>
+            <span><kbd class="border border-gray-300 dark:border-gray-600 rounded px-1">Entrée</kbd> ouvrir</span>
+            <span class="ml-auto"><kbd class="border border-gray-300 dark:border-gray-600 rounded px-1">Ctrl K</kbd> partout</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* ================= RECHERCHE GLOBALE ================= */
+    let _gsTimer = null, _gsItems = [], _gsIdx = -1, _gsReq = 0;
+
+    function openGlobalSearch() {
+        const m = document.getElementById('search-modal');
+        if (!m) return;
+        m.classList.remove('hidden');
+        const inp = document.getElementById('gs-input');
+        inp.value = '';
+        _gsItems = []; _gsIdx = -1;
+        _gsHint();
+        setTimeout(() => inp.focus(), 60);
+    }
+    function closeGlobalSearch() {
+        document.getElementById('search-modal')?.classList.add('hidden');
+    }
+    function _gsHint() {
+        document.getElementById('gs-results').innerHTML =
+            '<p class="p-6 text-sm text-gray-400 text-center">Tapez au moins 2 caractères : patient, produit, examen…</p>';
+    }
+    function _gsEsc(s) {
+        const d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    }
+    function _gsMark(txt, q) {
+        let esc = _gsEsc(txt);
+        if (!q) return esc;
+        const rx = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+        return esc.replace(rx, '<mark class="bg-amber-200 dark:bg-amber-500/40 text-inherit rounded px-0.5">$1</mark>');
+    }
+    function _gsRender(results, q) {
+        const box = document.getElementById('gs-results');
+        _gsItems = results; _gsIdx = results.length ? 0 : -1;
+        if (!results.length) {
+            box.innerHTML =
+                '<div class="p-8 text-center">' +
+                '<div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center animate-pulse">' +
+                '<i data-lucide="search-x" class="w-7 h-7 text-gray-400"></i></div>' +
+                '<p class="text-sm font-semibold text-gray-500 dark:text-gray-300">Aucun résultat pour « ' + _gsEsc(q) + ' »</p>' +
+                '<p class="text-xs text-gray-400 mt-1">Essayez un nom, un téléphone, un produit ou un examen.</p></div>';
+            lucide.createIcons();
+            return;
+        }
+        let html = '', lastCat = null;
+        results.forEach((r, i) => {
+            if (r.cat !== lastCat) {
+                lastCat = r.cat;
+                html += '<p class="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">' + _gsEsc(r.cat) + '</p>';
+            }
+            html += '<a href="' + r.url + '" data-idx="' + i + '" class="gs-item flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition ' + (i === _gsIdx ? 'bg-brand-50 dark:bg-brand-950/40' : '') + '">' +
+                '<span class="w-9 h-9 rounded-xl bg-brand-100 dark:bg-brand-950/60 text-brand-600 dark:text-brand-400 flex items-center justify-center shrink-0"><i data-lucide="' + r.icon + '" class="w-4 h-4"></i></span>' +
+                '<span class="min-w-0"><span class="block text-sm font-semibold truncate">' + _gsMark(r.label, q) + '</span>' +
+                (r.sub ? '<span class="block text-xs text-gray-400 truncate">' + _gsMark(r.sub, q) + '</span>' : '') +
+                '</span></a>';
+        });
+        box.innerHTML = html;
+        lucide.createIcons();
+    }
+    function _gsMove(dir) {
+        if (!_gsItems.length) return;
+        _gsIdx = (_gsIdx + dir + _gsItems.length) % _gsItems.length;
+        document.querySelectorAll('.gs-item').forEach((el, i) => {
+            el.classList.toggle('bg-brand-50', i === _gsIdx);
+            el.classList.toggle('dark:bg-brand-950/40', i === _gsIdx);
+            if (i === _gsIdx) el.scrollIntoView({ block: 'nearest' });
+        });
+    }
+    document.getElementById('gs-input').addEventListener('input', function () {
+        const q = this.value.trim();
+        clearTimeout(_gsTimer);
+        if (q.length < 2) { _gsHint(); _gsItems = []; _gsIdx = -1; return; }
+        _gsTimer = setTimeout(async () => {
+            const req = ++_gsReq;
+            try {
+                const resp = await fetch("{% url 'global_search' %}?q=" + encodeURIComponent(q),
+                    { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const data = await resp.json();
+                if (req === _gsReq) _gsRender(data.results || [], q);
+            } catch (e) {}
+        }, 250);
+    });
+    document.addEventListener('keydown', function (e) {
+        const modal = document.getElementById('search-modal');
+        if ((e.ctrlKey || e.metaKey) && ['k', 'K', 'f', 'F'].includes(e.key)) {
+            if (modal) { e.preventDefault(); openGlobalSearch(); }
+            return;
+        }
+        if (!modal || modal.classList.contains('hidden')) return;
+        if (e.key === 'Escape') { closeGlobalSearch(); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); _gsMove(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); _gsMove(-1); }
+        else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (_gsIdx >= 0 && _gsItems[_gsIdx]) location.href = _gsItems[_gsIdx].url;
+        }
+    });
+</script>
+{% endif %}
+
 {% block extra_js %}{% endblock %}
 </body>
 </html>
