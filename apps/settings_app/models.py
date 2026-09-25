@@ -158,6 +158,11 @@ class HomeCareSplitConfig(TimeStampedModel):
     """Répartition soins à domicile."""
     doctor_pct = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% médecin traitant")
     center_pct = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="% centre")
+    # Consultation à domicile : pourcentages propres (même principe)
+    consult_doctor_pct = models.DecimalField(max_digits=5, decimal_places=2, default=50,
+                                             verbose_name="% médecin (consultation)")
+    consult_center_pct = models.DecimalField(max_digits=5, decimal_places=2, default=50,
+                                             verbose_name="% centre (consultation)")
     effective_from = models.DateTimeField()
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
@@ -168,9 +173,12 @@ class HomeCareSplitConfig(TimeStampedModel):
     def clean(self):
         if self.doctor_pct + self.center_pct != 100:
             raise ValidationError("Médecin + centre doivent totaliser exactement 100 %.")
+        if self.consult_doctor_pct + self.consult_center_pct != 100:
+            raise ValidationError("Consultation : médecin + centre doivent totaliser exactement 100 %.")
 
     def __str__(self):
-        return f"Domicile: {self.doctor_pct}% médecin / {self.center_pct}% centre"
+        return (f"Domicile: {self.doctor_pct}% médecin / {self.center_pct}% centre — "
+                f"Consultation: {self.consult_doctor_pct}% / {self.consult_center_pct}%")
 
 
 class MedicineSplitConfig(TimeStampedModel):

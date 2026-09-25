@@ -3,6 +3,7 @@ from datetime import date as date_cls
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -212,7 +213,7 @@ def operations_page(request):
 
     ops = []
 
-    for p in Payment.objects.select_related('invoice__patient', 'received_by').order_by('-id')[:50]:
+    for p in Payment.objects.select_related('invoice__patient', 'received_by').order_by('-id'):
         inv = p.invoice
         ops.append({
             'type': 'payment', 'id': p.id, 'date': p.date, 'created': p.created_at,
@@ -226,7 +227,7 @@ def operations_page(request):
             'editable': p.status == Payment.Status.VALID,
         })
 
-    for inv in Invoice.objects.select_related('patient', 'created_by').order_by('-id')[:50]:
+    for inv in Invoice.objects.select_related('patient', 'created_by').order_by('-id'):
         n_pay = inv.payments.filter(status=Payment.Status.VALID).count()
         ops.append({
             'type': 'invoice', 'id': inv.id, 'date': inv.date, 'created': inv.created_at,
@@ -240,7 +241,7 @@ def operations_page(request):
             'editable': False,
         })
 
-    for e in Expense.objects.select_related('created_by').order_by('-id')[:50]:
+    for e in Expense.objects.select_related('created_by').order_by('-id'):
         ops.append({
             'type': 'expense', 'id': e.id, 'date': e.date, 'created': e.created_at,
             'desc': f"Dépense — {e.label}",
@@ -249,7 +250,7 @@ def operations_page(request):
             'inactive': False, 'cancelable': True, 'editable': True,
         })
 
-    for se in Session.objects.select_related('patient').order_by('-id')[:50]:
+    for se in Session.objects.select_related('patient').order_by('-id'):
         ops.append({
             'type': 'session', 'id': se.id, 'date': se.date, 'created': se.created_at,
             'desc': f"Séance — {se.patient.full_name} ({se.get_motif_display()})",
@@ -258,7 +259,7 @@ def operations_page(request):
             'inactive': False, 'cancelable': True, 'editable': False,
         })
 
-    for v in PharmacySale.objects.select_related('patient', 'product', 'sold_by').order_by('-id')[:50]:
+    for v in PharmacySale.objects.select_related('patient', 'product', 'sold_by').order_by('-id'):
         ops.append({
             'type': 'sale', 'id': v.id, 'date': v.date, 'created': v.created_at,
             'desc': f"Vente — {v.product.name} x{v.quantity} — "
@@ -268,7 +269,7 @@ def operations_page(request):
             'inactive': False, 'cancelable': True, 'editable': False,
         })
 
-    for r in LaboratoryRecord.objects.select_related('patient', 'exam').order_by('-id')[:50]:
+    for r in LaboratoryRecord.objects.select_related('patient', 'exam').order_by('-id'):
         ops.append({
             'type': 'lab', 'id': r.id, 'date': r.date, 'created': r.created_at,
             'desc': f"Examen — {r.patient.full_name} — {r.exam.name}",
@@ -277,7 +278,7 @@ def operations_page(request):
             'inactive': False, 'cancelable': True, 'editable': True,
         })
 
-    for r in MedicineRecord.objects.select_related('patient').order_by('-id')[:50]:
+    for r in MedicineRecord.objects.select_related('patient').order_by('-id'):
         ops.append({
             'type': 'med', 'id': r.id, 'date': r.date, 'created': r.created_at,
             'desc': f"Médecine — {r.patient.full_name} — {r.get_category_display()}",
@@ -286,16 +287,19 @@ def operations_page(request):
             'inactive': False, 'cancelable': True, 'editable': True,
         })
 
-    for r in HomeCareService.objects.select_related('patient').order_by('-id')[:50]:
+    for r in HomeCareService.objects.select_related('patient').order_by('-id'):
+        is_consult = getattr(r, 'service_type', 'SOINS') == 'CONSULTATION'
         ops.append({
             'type': 'home', 'id': r.id, 'date': r.date, 'created': r.created_at,
-            'desc': f"Domicile — {r.patient.full_name} "
-                    f"({r.sessions_done}/{r.sessions_prescribed} séances)",
+            'desc': (f"Consultation à domicile — {r.patient.full_name}"
+                     if is_consult else
+                     f"Domicile — {r.patient.full_name} "
+                     f"({r.sessions_done}/{r.sessions_prescribed} séances)"),
             'amount': '', 'by': str(r.created_by or '—'), 'status': '—',
             'inactive': False, 'cancelable': True, 'editable': False,
         })
 
-    for a in Appointment.objects.select_related('patient').order_by('-id')[:50]:
+    for a in Appointment.objects.select_related('patient').order_by('-id'):
         ops.append({
             'type': 'rdv', 'id': a.id, 'date': a.datetime.date(), 'created': a.created_at,
             'desc': f"RDV — {a.patient.full_name} — {a.motif} "
@@ -307,10 +311,68 @@ def operations_page(request):
             'editable': False,
         })
 
+    # ----- Filtres (type, recherche, période) -----
+    ftype = request.GET.get('type', '')
+    q = request.GET.get('q', '').strip()
+    try:
+        fd1 = date_cls.fromisoformat(request.GET.get('d1', ''))
+    except ValueError:
+        fd1 = None
+    try:
+        fd2 = date_cls.fromisoformat(request.GET.get('d2', ''))
+    except ValueError:
+        fd2 = None
+    if ftype:
+        ops = [o for o in ops if o['type'] == ftype]
+    if q:
+        needle = q.casefold()
+        ops = [o for o in ops
+               if needle in f"{o['desc']} {o['amount']} {o['by']}".casefold()]
+    if fd1:
+        ops = [o for o in ops if o['date'] >= fd1]
+    if fd2:
+        ops = [o for o in ops if o['date'] <= fd2]
+
     ops.sort(key=lambda o: o['created'], reverse=True)
+
+    # ----- Pagination (25 par page, navigation façon Google) -----
+    paginator = Paginator(ops, 25)
+    page = paginator.get_page(request.GET.get('page'))
+    num, total_pages = page.number, paginator.num_pages
+    pages_num = [p for p in range(1, total_pages + 1)
+                 if p <= 3 or p == total_pages or abs(p - num) <= 1]
+    pages_shown = []
+    prev = None
+    for p in pages_num:
+        if prev is not None and p - prev > 1:
+            pages_shown.append('…')
+        pages_shown.append(p)
+        prev = p
+
+    from urllib.parse import urlencode
+    qs = urlencode({k: v for k, v in {
+        'type': ftype, 'q': q,
+        'd1': fd1.isoformat() if fd1 else '',
+        'd2': fd2.isoformat() if fd2 else '',
+    }.items() if v})
+
     return render(request, 'finance/operations.html', {
         'page_title': 'Opérations',
-        'ops': ops[:120],
+        'ops': page,
+        'page': page,
+        'pages_shown': pages_shown,
+        'total_ops': paginator.count,
+        'qs': qs,
+        'ftype': ftype, 'q': q,
+        'd1': fd1.isoformat() if fd1 else '',
+        'd2': fd2.isoformat() if fd2 else '',
+        'op_types': [
+            ('payment', 'Paiements'), ('invoice', 'Factures'),
+            ('expense', 'Dépenses'), ('session', 'Séances (centre)'),
+            ('sale', 'Ventes (pharmacie)'), ('lab', 'Examens (labo)'),
+            ('med', 'Actes médecine'), ('home', 'Soins à domicile'),
+            ('rdv', 'Rendez-vous'),
+        ],
     })
 
 

@@ -187,17 +187,18 @@ def prescripteurs_page(request):
     """Synthèse par prescripteur (labo + médecine) sur une période."""
     d1, d2 = _periode(request)
     prescripteurs = prescribers_summary(d1, d2)
-    # Graphique : qui a le plus d'actes (labo + médecine) ?
+    # Graphique : qui a le plus d'actes (labo + médecine + domicile) ?
     chart, top_key = None, None
     if prescripteurs:
         ordered = sorted(prescripteurs,
-                         key=lambda e: e['labo_count'] + e['med_count'],
+                         key=lambda e: e['labo_count'] + e['med_count'] + e['dom_count'],
                          reverse=True)
         top_key = ordered[0]['key']
-        chart = {'titre': "Actes par prescripteur (labo + médecine)",
+        chart = {'titre': "Actes par prescripteur (labo + médecine + domicile)",
                  'unite': 'actes',
                  'labels': [e['name'] for e in ordered[:10]],
-                 'values': [e['labo_count'] + e['med_count'] for e in ordered[:10]]}
+                 'values': [e['labo_count'] + e['med_count'] + e['dom_count']
+                            for e in ordered[:10]]}
     return render(request, 'reports/prescripteurs.html', {
         'page_title': 'Rapport par prescripteur',
         'd1': d1.isoformat(), 'd2': d2.isoformat(),

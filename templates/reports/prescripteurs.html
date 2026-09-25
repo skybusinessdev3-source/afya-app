@@ -58,6 +58,8 @@
                         <th class="px-4 py-3 font-medium text-right">Part labo ($)<br><span class="text-[10px] font-normal">sur encaissé</span></th>
                         <th class="px-4 py-3 font-medium text-center">Actes médecine</th>
                         <th class="px-4 py-3 font-medium text-right">Part médecine ($)<br><span class="text-[10px] font-normal">sur encaissé</span></th>
+                        <th class="px-4 py-3 font-medium text-center">Actes domicile</th>
+                        <th class="px-4 py-3 font-medium text-right">Part domicile ($)<br><span class="text-[10px] font-normal">sur encaissé</span></th>
                         <th class="px-4 py-3 font-medium text-right">TOTAL part ($)</th>
                         <th class="px-4 py-3 font-medium text-right">Déjà versée ($)</th>
                         <th class="px-4 py-3 font-medium text-right">Reste à verser ($)</th>
@@ -81,12 +83,14 @@
                         <td class="px-4 py-3 text-right">{{ p.labo_share_txt }}</td>
                         <td class="px-4 py-3 text-center">{{ p.med_count }}</td>
                         <td class="px-4 py-3 text-right">{{ p.med_share_txt }}</td>
+                        <td class="px-4 py-3 text-center">{{ p.dom_count }}</td>
+                        <td class="px-4 py-3 text-right">{{ p.dom_share_txt }}</td>
                         <td class="px-4 py-3 text-right font-semibold text-brand-600 dark:text-brand-400">{{ p.total_share_txt }}</td>
                         <td class="px-4 py-3 text-right text-brand-600 dark:text-brand-400">{{ p.paid_share_txt }}</td>
                         <td class="px-4 py-3 text-right font-semibold {% if p.unpaid_share > 0 %}text-amber-500{% else %}text-gray-300 dark:text-gray-600{% endif %}">{{ p.unpaid_share_txt }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun acte prescripteur sur cette période.</td></tr>
+                    <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">Aucun acte prescripteur sur cette période.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

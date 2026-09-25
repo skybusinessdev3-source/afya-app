@@ -42,9 +42,15 @@ def home_care_page(request):
         splits_by_invoice[inv_id] = (d + s.doctor_amount_usd, c + s.center_amount_usd)
 
     records_data = []
+    parts_attente_count = 0
+    parts_attente_total = Decimal('0')
     for r in records:
         doc, cen = splits_by_invoice.get(r.invoice_id, (Decimal('0'), Decimal('0')))
         records_data.append({'r': r, 'doc': doc, 'cen': cen})
+        # Part médecin pas encore marquée « versée » (mois affiché)
+        if doc > 0 and not r.doctor_paid:
+            parts_attente_count += 1
+            parts_attente_total += doc
 
     context = {
         'page_title': 'Soins à domicile',
@@ -53,6 +59,8 @@ def home_care_page(request):
         'can_backdate': can_backdate(request.user),
         'doctors': Staff.objects.filter(is_active=True, title='DOCTOR'),
         'records_data': records_data,
+        'parts_attente_count': parts_attente_count,
+        'parts_attente_total': f"{parts_attente_total:.2f}".rstrip('0').rstrip('.'),
     }
     return render(request, 'home_care/index.html', context)
 
@@ -157,20 +165,33 @@ def home_care_create(request):
             return JsonResponse({'success': False, 'message': "Montant invalide."}, status=400)
         currency = data.get('currency', 'USD')
 
+        # Type de prestation : soins (séances) ou consultation (acte unique)
+        service_type = data.get('service_type', 'SOINS')
+        if service_type not in ('SOINS', 'CONSULTATION'):
+            service_type = 'SOINS'
+        is_consult = service_type == 'CONSULTATION'
+        # Le médecin peut recevoir sa part le jour même — on le trace dès l'enregistrement
+        part_deja_versee = bool(data.get('doctor_paid'))
+
         service = HomeCareService.objects.create(
             patient=patient,
             doctor_id=data.get('doctor_id') or None,
-            sessions_prescribed=int(data.get('sessions_prescribed', 1) or 1),
+            service_type=service_type,
+            sessions_prescribed=1 if is_consult else int(data.get('sessions_prescribed', 1) or 1),
+            sessions_done=1 if is_consult else 0,
             date=op_date,
+            doctor_paid=part_deja_versee,
+            doctor_paid_on=op_date if part_deja_versee else None,
             observation=data.get('observation', ''),
             created_by=request.user,
         )
         log_event(user=request.user, action=AuditLog.Actions.CREATE,
                   module='home_care', obj=service, ip_address=get_client_ip(request))
 
+        type_txt = "Consultation à domicile" if is_consult else "Soins à domicile"
         invoice = Invoice.objects.create(
             patient=patient,
-            label=f"Soins à domicile — {service.date:%d/%m/%Y}",
+            label=f"{type_txt} — {service.date:%d/%m/%Y}",
             amount_original=amount,
             currency_original=currency,
             date=op_date,
@@ -201,12 +222,51 @@ def home_care_create(request):
 
         return JsonResponse({
             'success': True,
-            'message': f"Prestation créée pour {patient.full_name} "
-                       f"({service.sessions_prescribed} séances).",
+            'message': (f"Consultation enregistrée pour {patient.full_name}."
+                        if is_consult else
+                        f"Prestation créée pour {patient.full_name} "
+                        f"({service.sessions_prescribed} séances)."),
             'creance': _creance_info(invoice),
         })
 
     except (Patient.DoesNotExist, HomeCareService.DoesNotExist, KeyError):
         return JsonResponse({'success': False, 'message': "Données introuvables."}, status=404)
     except (InvalidOperation, ValueError):
+        return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def home_doctor_paid(request):
+    """Marque la part médecin d'une ou plusieurs prestations comme versée
+    (ou non). Réservé aux responsables — c'est un mouvement de caisse."""
+    if not can_backdate(request.user):
+        return JsonResponse({'success': False,
+                             'message': "Réservé aux responsables."}, status=403)
+    try:
+        data = json.loads(request.body)
+        ids = [int(i) for i in data.get('ids', [])]
+        paid = bool(data.get('paid', True))
+        if not ids:
+            return JsonResponse({'success': False,
+                                 'message': "Aucune prestation visée."}, status=400)
+        records = list(HomeCareService.objects.filter(id__in=ids))
+        if not records:
+            return JsonResponse({'success': False,
+                                 'message': "Prestations introuvables."}, status=404)
+        today = timezone.localdate()
+        for r in records:
+            r.doctor_paid = paid
+            r.doctor_paid_on = today if paid else None
+            r.save(update_fields=['doctor_paid', 'doctor_paid_on'])
+            log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+                      module='home_care', obj=r, ip_address=get_client_ip(request))
+        return JsonResponse({
+            'success': True,
+            'message': (f"Part médecin marquée « versée » ({len(records)} prestation(s))."
+                        if paid else
+                        f"Part médecin remise « en attente » ({len(records)} prestation(s))."),
+        })
+    except (ValueError, TypeError):
         return JsonResponse({'success': False, 'message': "Données invalides."}, status=400)

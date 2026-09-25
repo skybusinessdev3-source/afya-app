@@ -636,6 +636,19 @@ def _date_txt(d):
     return f"{d:%d/%m/%Y}"
 
 
+def _splits_domicile_par_facture(services):
+    """Part médecin réellement encaissée par facture de soins à domicile,
+    via les répartitions FIGÉES de chaque paiement (§13)."""
+    from apps.home_care.models import HomeCarePaymentSplit
+    res = defaultdict(lambda: Decimal('0'))
+    for sp in (HomeCarePaymentSplit.objects
+               .filter(payment__invoice__home_care_services__in=services,
+                       payment__status='VALID')
+               .select_related('payment')):
+        res[sp.payment.invoice_id] += sp.doctor_amount_usd
+    return res
+
+
 def prescribers_summary(d1, d2):
     """Liste des prescripteurs (labo + médecine) ayant des actes entre d1 et d2
     inclus, regroupés par nom normalisé, triés par nom."""
@@ -648,6 +661,7 @@ def prescribers_summary(d1, d2):
             'key': key, 'name': name,
             'labo_count': 0, 'labo_share': Decimal('0'),
             'med_count': 0, 'med_share': Decimal('0'),
+            'dom_count': 0, 'dom_share': Decimal('0'),
             'paid_share': Decimal('0'), 'unpaid_share': Decimal('0'),
         })
         # Variantes du même prescripteur fusionnées : préfère la forme « Dr. … »
@@ -675,11 +689,42 @@ def prescribers_summary(d1, d2):
               .prefetch_related('invoice__payments')):
         _touch(r, 'med')
 
+    # Soins à domicile : la part du médecin traitant vient des splits figés
+    # (sur l'encaissé). Une part déjà « versée » n'est plus comptée comme due.
+    dom_services = list(HomeCareService.objects
+                        .filter(date__gte=d1, date__lte=d2)
+                        .select_related('doctor', 'patient', 'invoice'))
+    parts_dom = _splits_domicile_par_facture(dom_services)
+    for s in dom_services:
+        if not s.doctor_id:
+            continue
+        part = parts_dom.get(s.invoice_id, Decimal('0'))
+        if part <= 0:
+            continue                       # rien d'encaissé → rien à verser
+        name = _canon_prescriber(str(s.doctor))
+        key = _norm_prescriber_name(name)
+        entry = summary.setdefault(key, {
+            'key': key, 'name': name,
+            'labo_count': 0, 'labo_share': Decimal('0'),
+            'med_count': 0, 'med_share': Decimal('0'),
+            'dom_count': 0, 'dom_share': Decimal('0'),
+            'paid_share': Decimal('0'), 'unpaid_share': Decimal('0'),
+        })
+        if name.startswith('Dr. ') and not entry['name'].startswith('Dr. '):
+            entry['name'] = name
+        entry['dom_count'] += 1
+        entry['dom_share'] += part
+        if getattr(s, 'doctor_paid', False):
+            entry['paid_share'] += part
+        else:
+            entry['unpaid_share'] += part
+
     rows = sorted(summary.values(), key=lambda e: e['name'].casefold())
     for e in rows:
-        e['total_share'] = e['labo_share'] + e['med_share']
+        e['total_share'] = e['labo_share'] + e['med_share'] + e['dom_share']
         e['labo_share_txt'] = _fmt_nombre(e['labo_share'])
         e['med_share_txt'] = _fmt_nombre(e['med_share'])
+        e['dom_share_txt'] = _fmt_nombre(e['dom_share'])
         e['total_share_txt'] = _fmt_nombre(e['total_share'])
         e['paid_share_txt'] = _fmt_nombre(e['paid_share'])
         e['unpaid_share_txt'] = _fmt_nombre(e['unpaid_share'])
@@ -741,6 +786,41 @@ def prescriber_report(key, d1, d2):
             'prescriber_paid': bool(r.prescriber_paid),
             'part_statut': 'Versée' if r.prescriber_paid else 'En attente',
             'observation': r.observation or '',
+        })
+
+    # Soins à domicile : part du médecin traitant (splits figés sur l'encaissé)
+    dom_services = list(HomeCareService.objects
+                        .filter(date__gte=d1, date__lte=d2)
+                        .select_related('doctor', 'patient', 'invoice'))
+    parts_dom = _splits_domicile_par_facture(dom_services)
+    for s in dom_services:
+        if not s.doctor_id:
+            continue
+        name = _canon_prescriber(str(s.doctor))
+        if _norm_prescriber_name(name) != key_norm:
+            continue
+        part = parts_dom.get(s.invoice_id, Decimal('0'))
+        if part <= 0:
+            continue
+        if display_name is None or (name.startswith('Dr. ')
+                                    and not display_name.startswith('Dr. ')):
+            display_name = name
+        detail = ('Consultation à domicile'
+                  if getattr(s, 'service_type', 'SOINS') == 'CONSULTATION'
+                  else f"Soins à domicile — {s.sessions_done}/{s.sessions_prescribed} séance(s)")
+        montant = s.invoice.amount_usd if s.invoice else Decimal('0')
+        rows.append({
+            'date': s.date, 'date_txt': _date_txt(s.date),
+            'activite': 'Domicile',
+            'patient': s.patient.full_name,
+            'detail': detail,
+            'montant_usd': montant,
+            'part_usd': part,
+            'montant_txt': _fmt_nombre(montant),
+            'part_txt': _fmt_nombre(part),
+            'prescriber_paid': bool(getattr(s, 'doctor_paid', False)),
+            'part_statut': 'Versée' if getattr(s, 'doctor_paid', False) else 'En attente',
+            'observation': s.observation or '',
         })
 
     rows.sort(key=lambda x: (x['date'], x['activite'], x['patient']))
@@ -985,8 +1065,11 @@ def activity_report(slug, d1, d2):
             if paye:
                 tot_paye += paye
             par_patient_dom[s.patient.full_name] += s.sessions_done or 0
-            prestation = (f"Soins à domicile — {s.sessions_done}/{s.sessions_prescribed} "
-                          f"séance(s)")
+            if getattr(s, 'service_type', 'SOINS') == 'CONSULTATION':
+                prestation = "Consultation à domicile"
+            else:
+                prestation = (f"Soins à domicile — {s.sessions_done}/{s.sessions_prescribed} "
+                              f"séance(s)")
             rows.append([_date_txt(s.date), s.patient.full_name, prestation,
                          str(s.doctor) if s.doctor_id else '—',
                          _fmt_nombre(fact) if fact else '—',

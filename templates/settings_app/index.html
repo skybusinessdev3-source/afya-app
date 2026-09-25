@@ -158,9 +158,15 @@
         <div class="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-teal-300 dark:border-teal-800">
             <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="house-plus" class="w-5 h-5 text-teal-500"></i> Répartition soins à domicile</h3>
             <p class="text-xs text-gray-400 mb-3">Actuel : <b>{{ home_split|default:"—" }}</b></p>
+            <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1">Soins (séances)</p>
             <div class="grid grid-cols-2 gap-2">
                 <input id="hc-doc" type="number" step="0.01" placeholder="Médecin %" value="{{ home_split.doctor_pct|default:50 }}" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
                 <input id="hc-center" type="number" step="0.01" placeholder="Centre %" value="{{ home_split.center_pct|default:50 }}" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+            </div>
+            <p class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mt-3 mb-1">Consultation à domicile</p>
+            <div class="grid grid-cols-2 gap-2">
+                <input id="hc-consult-doc" type="number" step="0.01" placeholder="Médecin %" value="{{ home_split.consult_doctor_pct|default:50 }}" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input id="hc-consult-center" type="number" step="0.01" placeholder="Centre %" value="{{ home_split.consult_center_pct|default:50 }}" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
             </div>
             <div id="hc-feedback" class="hidden mt-3 px-3 py-2.5 rounded-xl text-sm font-medium"></div>
             <button onclick="saveHomeSplit(this)" class="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-teal-700 text-white font-semibold text-sm active:scale-[.98]">Nouvelle version</button>
@@ -480,6 +486,7 @@ const saveLabSplit = (b) => post("{% url 'settings_app:lab_split_create' %}", {
 
 const saveHomeSplit = (b) => post("{% url 'settings_app:home_split_create' %}", {
     doctor_pct: c('hc-doc'), center_pct: c('hc-center'),
+    consult_doctor_pct: c('hc-consult-doc'), consult_center_pct: c('hc-consult-center'),
 }, document.getElementById('hc-feedback'));
 
 const saveMedSplit = (b) => post("{% url 'settings_app:medicine_split_create' %}", {

@@ -45,6 +45,11 @@
 
                 <!-- Champs mode NOUVEAU uniquement -->
                 <div id="h-fields-new" class="space-y-2">
+                    <select id="h-type" onchange="toggleHomeType()"
+                            class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                        <option value="SOINS">Soins à domicile (séances)</option>
+                        <option value="CONSULTATION">Consultation à domicile</option>
+                    </select>
                     <select id="h-doctor" class="w-full px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
                         <option value="">— Médecin traitant —</option>
                         {% for d in doctors %}<option value="{{ d.id }}">{{ d }}</option>{% endfor %}
@@ -59,6 +64,12 @@
                             <option value="FC">FC</option>
                         </select>
                     </div>
+
+                    <!-- Part médecin déjà versée le jour même -->
+                    <label class="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-900 cursor-pointer text-sm">
+                        <input id="h-doctor-paid" type="checkbox" class="w-4 h-4 mt-0.5 accent-brand-600">
+                        <span>Le médecin <b>a déjà reçu sa part</b> (versée aujourd'hui)</span>
+                    </label>
                 </div>
 
                 <!-- Paiement (toujours visible) -->
@@ -102,12 +113,24 @@
                     <i data-lucide="table" class="w-5 h-5 text-brand-600"></i> Prestations de {{ month_label }}
                 </h3>
             </div>
+            {% if parts_attente_count %}
+            <div class="mx-4 mt-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 flex items-start gap-3">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></i>
+                <div class="text-sm">
+                    <b class="text-amber-700 dark:text-amber-300">{{ parts_attente_count }} part(s) médecin pas encore marquée(s) « versée » ce mois — {{ parts_attente_total }} $ au total.</b>
+                    <p class="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                        Si un médecin a déjà reçu son pourcentage, cliquez « Marquer versée » sur la ligne concernée pour que les rapports ne l'affichent plus comme à verser.
+                    </p>
+                </div>
+            </div>
+            {% endif %}
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="text-left text-gray-400 border-b border-gray-200 dark:border-gray-800">
                             <th class="px-4 py-3 font-medium">Date</th>
                             <th class="px-4 py-3 font-medium">Patient</th>
+                            <th class="px-4 py-3 font-medium">Type</th>
                             <th class="px-4 py-3 font-medium">Médecin</th>
                             <th class="px-4 py-3 font-medium text-center">Séances (faites/prévues)</th>
                             <th class="px-4 py-3 font-medium text-right">Facturé</th>
@@ -121,17 +144,39 @@
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition">
                             <td class="px-4 py-3 whitespace-nowrap">{{ r.date|date:"d/m/Y" }}</td>
                             <td class="px-4 py-3 font-medium">{{ r.patient }}</td>
+                            <td class="px-4 py-3">
+                                {% if r.service_type == 'CONSULTATION' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-lg bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-xs font-semibold">Consultation</span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-xs font-semibold">Soins</span>
+                                {% endif %}
+                            </td>
                             <td class="px-4 py-3 text-gray-400">{{ r.doctor|default:"—" }}</td>
-                            <td class="px-4 py-3 text-center">{{ r.sessions_done }}/{{ r.sessions_prescribed }}</td>
+                            <td class="px-4 py-3 text-center">{% if r.service_type == 'CONSULTATION' %}—{% else %}{{ r.sessions_done }}/{{ r.sessions_prescribed }}{% endif %}</td>
                             <td class="px-4 py-3 text-right font-semibold">
                                 {% if r.invoice %}{{ r.invoice.amount_original }} {{ r.invoice.currency_original }}{% else %}—{% endif %}
                             </td>
-                            <td class="px-4 py-3 text-right text-gray-400">{{ item.doc }} $</td>
+                            <td class="px-4 py-3 text-right text-gray-400">
+                                {{ item.doc }} $
+                                {% if item.doc > 0 %}
+                                    {% if r.doctor_paid %}
+                                    <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded-md bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 text-[10px] font-bold">✓ versée</span>
+                                    {% elif can_backdate %}
+                                    <button onclick="marquerPartDom([{{ r.id }}])"
+                                            title="Marquer la part médecin comme versée"
+                                            class="mt-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-bold hover:bg-amber-200 dark:hover:bg-amber-900 transition">
+                                        Marquer versée
+                                    </button>
+                                    {% else %}
+                                    <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-bold">en attente</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
                             <td class="px-4 py-3 text-right text-gray-400">{{ item.cen }} $</td>
                         </tr>
                         {% endwith %}
                         {% empty %}
-                        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Aucune prestation ce mois-ci.</td></tr>
+                        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucune prestation ce mois-ci.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -288,6 +333,23 @@ async function submitNewPatient(btn) {
 }
 
 /* ================= ENVOI ================= */
+function toggleHomeType() {
+    const isConsult = document.getElementById('h-type').value === 'CONSULTATION';
+    document.getElementById('h-sessions').classList.toggle('hidden', isConsult);
+}
+
+async function marquerPartDom(ids) {
+    if (!confirm("Confirmer : le médecin a reçu sa part pour cette prestation ?")) return;
+    const res = await fetch("{% url 'home_care:doctor_paid' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify({ ids, paid: true }),
+    });
+    const data = await res.json();
+    if (data.success) { location.reload(); }
+    else { alert('✗ ' + data.message); }
+}
+
 async function submitHomeCare(btn) {
     const feedback = document.getElementById('h-feedback');
     btn.disabled = true;
@@ -317,10 +379,12 @@ async function submitHomeCare(btn) {
             mode: 'nouveau',
             date: (document.getElementById('h-date') || {}).value || '',
             patient_id: hcPatient.id,
+            service_type: document.getElementById('h-type').value,
             doctor_id: document.getElementById('h-doctor').value || null,
             sessions_prescribed: document.getElementById('h-sessions').value || 1,
             amount: document.getElementById('h-amount').value,
             currency: document.getElementById('h-currency').value,
+            doctor_paid: document.getElementById('h-doctor-paid').checked,
             amount_paid: document.getElementById('h-paid').value || '0',
             amount_paid2: (document.getElementById('h-paid2') || {}).value || '0',
             paid_currency2: (document.getElementById('h-paid-currency2') || {}).value || '',

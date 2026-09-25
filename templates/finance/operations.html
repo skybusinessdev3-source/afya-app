@@ -15,12 +15,28 @@
     </div>
 
     <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 animate-fade-up" style="animation-delay:.05s">
-        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-            <h3 class="font-bold flex items-center gap-2">
-                <i data-lucide="history" class="w-5 h-5 text-brand-600"></i> Opérations récentes
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+            <h3 class="font-bold flex items-center gap-2 mb-3">
+                <i data-lucide="history" class="w-5 h-5 text-brand-600"></i> Toutes les opérations
+                <span class="text-xs font-normal text-gray-400">({{ total_ops }} au total, depuis le lancement de l'app)</span>
             </h3>
-            <input type="text" id="op-filter" placeholder="Filtrer (patient, libellé, référence)…" oninput="filterOps()"
-                   class="w-full sm:w-72 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+            <form method="get" class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <select name="type" class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                    <option value="">— Tous les types —</option>
+                    {% for val, label in op_types %}
+                    <option value="{{ val }}" {% if ftype == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="q" value="{{ q }}" placeholder="Patient, libellé, référence…"
+                       class="col-span-2 sm:col-span-1 px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input type="date" name="d1" value="{{ d1 }}" title="Du"
+                       class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <input type="date" name="d2" value="{{ d2 }}" title="Au"
+                       class="px-3 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+                <button type="submit" class="col-span-2 sm:col-span-1 py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 text-white font-semibold text-sm active:scale-[.98]">
+                    Filtrer
+                </button>
+            </form>
         </div>
         <div class="overflow-x-auto">
             <table class="w-full text-sm" id="ops-table">
@@ -58,11 +74,45 @@
                         </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Aucune opération.</td></tr>
+                    <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Aucune opération trouvée.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+
+        <!-- ===== Pagination (style Google) ===== -->
+        {% if page.paginator.num_pages > 1 %}
+        <div class="p-4 border-t border-gray-200 dark:border-gray-800 flex flex-col items-center gap-2">
+            <div class="flex items-center gap-1.5 flex-wrap justify-center">
+                {% if page.has_previous %}
+                <a href="?page={{ page.previous_page_number }}{% if qs %}&{{ qs }}{% endif %}"
+                   class="px-3 h-9 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:border-brand-500 hover:text-brand-600 flex items-center gap-1 transition">
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i> Précédent
+                </a>
+                {% endif %}
+                {% for p in pages_shown %}
+                    {% if p == '…' %}
+                    <span class="px-2 text-gray-400 select-none">…</span>
+                    {% elif p == page.number %}
+                    <span class="w-9 h-9 rounded-lg bg-brand-600 text-white font-bold flex items-center justify-center text-sm shadow-md shadow-brand-500/30">{{ p }}</span>
+                    {% else %}
+                    <a href="?page={{ p }}{% if qs %}&{{ qs }}{% endif %}"
+                       class="w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:border-brand-500 hover:text-brand-600 flex items-center justify-center transition">{{ p }}</a>
+                    {% endif %}
+                {% endfor %}
+                {% if page.has_next %}
+                <a href="?page={{ page.next_page_number }}{% if qs %}&{{ qs }}{% endif %}"
+                   class="px-3 h-9 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-500 dark:text-gray-400 hover:border-brand-500 hover:text-brand-600 flex items-center gap-1 transition">
+                    Suivant <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </a>
+                {% endif %}
+            </div>
+            <p class="text-xs text-gray-400">
+                Opérations {{ page.start_index }} à {{ page.end_index }} sur {{ total_ops }}
+                — page {{ page.number }}/{{ page.paginator.num_pages }}
+            </p>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -129,13 +179,6 @@
 {% block extra_js %}
 <script>
 let OP = { type: null, id: null };
-
-function filterOps() {
-    const q = document.getElementById('op-filter').value.toLowerCase();
-    document.querySelectorAll('#ops-table tbody tr').forEach(tr => {
-        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-}
 
 /* ---------- Annuler ---------- */
 function openCancel(type, id) {

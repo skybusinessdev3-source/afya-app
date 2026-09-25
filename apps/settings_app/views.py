@@ -227,6 +227,8 @@ def home_split_create(request):
         cfg = HomeCareSplitConfig(
             doctor_pct=Decimal(str(data['doctor_pct'])),
             center_pct=Decimal(str(data['center_pct'])),
+            consult_doctor_pct=Decimal(str(data.get('consult_doctor_pct', 50))),
+            consult_center_pct=Decimal(str(data.get('consult_center_pct', 50))),
             effective_from=data.get('effective_from') or timezone.now(),
             created_by=request.user,
         )

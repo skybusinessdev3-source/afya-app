@@ -10,11 +10,15 @@ from apps.patients.models import Patient
 from apps.settings_app.models import Staff, HomeCareSplitConfig
 
 
-def get_active_home_care_split():
+def get_active_home_care_split(service_type='SOINS'):
+    """Répartition active — les consultations à domicile ont leurs propres
+    pourcentages (configurés dans la page Configuration)."""
     config = HomeCareSplitConfig.objects.filter(
         is_active=True, effective_from__lte=timezone.now()
     ).first()
     if config:
+        if service_type == 'CONSULTATION':
+            return config.consult_doctor_pct, config.consult_center_pct
         return config.doctor_pct, config.center_pct
     return Decimal('50'), Decimal('50')
 
@@ -25,7 +29,10 @@ def split_home_care_payment(payment):
     jamais sur le montant prescrit. La conversion (rate_used) est déjà figée
     sur le paiement par le mixin finance.
     """
-    doctor_pct, center_pct = get_active_home_care_split()
+    # Soins ou consultation ? Les pourcentages diffèrent (figés à ce paiement)
+    service = payment.invoice.home_care_services.first() if payment.invoice_id else None
+    service_type = getattr(service, 'service_type', 'SOINS')
+    doctor_pct, center_pct = get_active_home_care_split(service_type)
     doctor = (payment.amount_usd * doctor_pct / 100).quantize(Decimal('0.01'))
     return HomeCarePaymentSplit.objects.create(
         payment=payment,
@@ -37,6 +44,12 @@ def split_home_care_payment(payment):
 class HomeCareService(TimeStampedModel):
     """Prestation de soins à domicile — suivi des séances et facturation."""
 
+    class ServiceType(models.TextChoices):
+        SOINS = 'SOINS', 'Soins à domicile'
+        CONSULTATION = 'CONSULTATION', 'Consultation à domicile'
+
+    service_type = models.CharField(max_length=15, choices=ServiceType.choices,
+                                    default=ServiceType.SOINS, verbose_name="Type de prestation")
     patient = models.ForeignKey(Patient, on_delete=models.PROTECT, related_name='home_care_services')
     doctor = models.ForeignKey(Staff, null=True, blank=True, on_delete=models.SET_NULL,
                                related_name='home_care_treatments', verbose_name="Médecin traitant")
@@ -45,6 +58,9 @@ class HomeCareService(TimeStampedModel):
     date = models.DateField(default=timezone.localdate)
     invoice = models.ForeignKey('finance.Invoice', null=True, blank=True, on_delete=models.SET_NULL,
                                 related_name='home_care_services')
+    # Suivi du VERSEMENT de la part médecin (indépendant de l'encaissement patient)
+    doctor_paid = models.BooleanField(default=False, verbose_name="Part médecin déjà versée")
+    doctor_paid_on = models.DateField(null=True, blank=True, verbose_name="Part versée le")
     observation = models.TextField(blank=True)
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
 
