@@ -532,8 +532,22 @@ def company_report(company, year, month):
 
         obs = []
         obs.append("Séances en cours" if restant > 0 else "Séances terminées")
-        if pharmacie > 0:
+
+        a_pharmacie = False
+        a_labo = False
+
+        for inv in invoices:
+            if inv.label.startswith('Pharmacie'):
+                a_pharmacie = True
+
+            if inv.lab_records.exists():
+                a_labo = True
+
+        if a_pharmacie:
             obs.append("Pharmacie")
+
+        if a_labo:
+            obs.append("Labo")
 
         rows.append({
             'patient': p, 'pharmacie': pharmacie, 'prescrit': prescrit,
