@@ -929,6 +929,7 @@ def prescriber_report(key, d1, d2):
         avancee = _entreprise_solidaire(r.patient) and ratio_paye(r.invoice) < 1
         part = (r.prescriber_amount_usd * _ratio_part(r)).quantize(Decimal('0.01'))
         rows.append({
+            'id': r.id,
             'date': r.date, 'date_txt': _date_txt(r.date),
             'activite': 'Labo',
             'patient': r.patient.full_name,
@@ -957,6 +958,7 @@ def prescriber_report(key, d1, d2):
         avancee = _entreprise_solidaire(r.patient) and ratio_paye(r.invoice) < 1
         part = (r.prescriber_amount_usd * _ratio_part(r)).quantize(Decimal('0.01'))
         rows.append({
+            'id': r.id,
             'date': r.date, 'date_txt': _date_txt(r.date),
             'activite': 'Méd. manuelle' if _med_family(r.category) == 'manuelle' else 'Méd. générale',
             'patient': r.patient.full_name,
@@ -997,6 +999,7 @@ def prescriber_report(key, d1, d2):
         avancee = (_entreprise_solidaire(s.patient)
                    and (s.invoice is None or ratio_paye(s.invoice) < 1))
         rows.append({
+            'id': s.id,
             'date': s.date, 'date_txt': _date_txt(s.date),
             'activite': 'Domicile',
             'patient': s.patient.full_name,

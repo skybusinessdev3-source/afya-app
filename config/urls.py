@@ -24,6 +24,7 @@ urlpatterns = [
     path('configuration/', include('apps.settings_app.urls')),
     path('compte/', include('apps.accounts.urls')),
     path('medecine/', include('apps.medicine.urls')),
+    path('assistant/', include('apps.assistant.urls')),
     path('a-propos/', about_page, name='about'),
     path('', landing, name='landing'),
     path('tableau-de-bord/', dashboard, name='dashboard'),

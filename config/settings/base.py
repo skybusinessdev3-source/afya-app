@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'apps.notifications',
     'apps.settings_app',
     'apps.medicine',
+    'apps.assistant',
 ]
 
 MIDDLEWARE = [
@@ -87,6 +88,21 @@ USE_TZ = True
 VAPID_PUBLIC_KEY = env('VAPID_PUBLIC_KEY', default='')
 VAPID_PRIVATE_KEY = env('VAPID_PRIVATE_KEY', default='')
 VAPID_ADMIN_EMAIL = env('VAPID_ADMIN_EMAIL', default='admin@afya-app-crfmk.org')
+
+# ─── Assistant IA ───────────────────────────────────────
+# Groq (texte) : clé gratuite sur console.groq.com — JAMAIS dans Git, toujours dans .env
+GROQ_API_KEY = env('GROQ_API_KEY', default='')
+GROQ_MODEL = env('GROQ_MODEL', default='openai/gpt-oss-120b')
+GROQ_MODEL_FALLBACK = env('GROQ_MODEL_FALLBACK', default='openai/gpt-oss-20b')
+# Images « Nano Banana » : clé gratuite sur Google AI Studio — optionnel,
+# la génération d'images reste inactive tant que la clé n'est pas renseignée
+GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
+GEMINI_IMAGE_MODEL = env('GEMINI_IMAGE_MODEL', default='gemini-3.1-flash-image')
+# Plafond de messages par utilisateur et par jour (protection du quota Groq gratuit)
+ASSISTANT_DAILY_LIMIT = env.int('ASSISTANT_DAILY_LIMIT', default=150)
+# Pied de page des documents PDF générés par l'assistant
+ASSISTANT_DOC_FOOTER = env('ASSISTANT_DOC_FOOTER',
+                           default="CRF-MK — Document généré par l'assistant IA")
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
