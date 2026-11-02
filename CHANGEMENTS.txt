@@ -1,72 +1,32 @@
 ==============================================================
-ASSISTANT IA — AFYA APP (CRF-MK) — 02/11/2026 — v2
+CORRECTIF SPLASH — AFYA APP (CRF-MK) — 02/11/2026
 ==============================================================
-v2 : messages d'erreur Groq détaillés (diagnostic intégré).
 
-SI TU VOIS « erreur 403 » :
----------------------------
-Réessaie « Salut » avec cette version : la bulle affiche maintenant
-la cause exacte renvoyée par Groq, par exemple :
-- « clé refusée » -> la clé dans .env est fausse ou révoquée :
-  recrée-la sur console.groq.com (API Keys -> Create API Key),
-  colle-la dans .env SANS guillemets ni espaces :
-      GROQ_API_KEY=gsk_xxxxxxxx
-- « n'a pas le droit d'utiliser ce modèle » -> dans console.groq.com,
-  édite la clé et enlève toute restriction de modèles.
-- « refuse les requêtes envoyées depuis ce pays » -> Groq bloque les
-  appels depuis ta connexion locale ; ce n'est PAS un bug : sur le
-  serveur en ligne (Europe) l'assistant fonctionnera normalement.
-Le détail exact apparaît aussi dans le terminal de runserver
-(ligne « Groq HTTP 403 ... »).
+LE PROBLEME
+-----------
+L'écran d'entrée (splash CRF-MK) s'affichait à CHAQUE changement de
+page et après chaque action, alors qu'il ne doit apparaître qu'au
+lancement de l'app ou quand on actualise (F5).
 
-CE QUE FAIT L'ASSISTANT
------------------------
-- Répond sur les données du centre : rapport du jour, du mois, de
-  l'année, prescripteurs (parts versées / à verser), recherche de
-  patients, factures impayées, rapports par entreprise, journal
-  d'activité (selon le rôle de chacun).
-- Génère des documents : Word (.docx), PDF, Excel (.xlsx).
-- Génère des images (« Nano Banana » / Google AI Studio) — actif
-  seulement si GEMINI_API_KEY est configurée.
-- Lit les fichiers déposés : PDF, Word, Excel, texte (trombone),
-  puis répond à leur sujet.
-- Chacun ne voit QUE ce que son rôle lui donne déjà le droit de voir.
-
-SECURITE (comme demandé)
-------------------------
-- L'IA ne modifie JAMAIS rien seule : elle PROPOSE, une carte de
-  confirmation s'affiche, et SEUL LE SUPERUSER peut valider
-  (jeton signé, expire en 15 min, tout est tracé au journal).
-- 3 demandes hors de son domaine -> l'assistant se tait 5 minutes
-  pour cet utilisateur (compte à rebours affiché + trace au journal).
-- Plafond de 150 messages par utilisateur et par jour
-  (ASSISTANT_DAILY_LIMIT) pour protéger le quota gratuit Groq.
+LA CORRECTION (templates/base.html uniquement)
+----------------------------------------------
+Le splash s'affiche maintenant UNIQUEMENT :
+- à l'ouverture de l'app (nouvel onglet, lancement sur mobile) ;
+- à une actualisation de la page (F5 / tirer-pour-rafraîchir).
+Il ne s'affiche PLUS :
+- quand on navigue entre les pages (menu, liens) ;
+- après une action (enregistrement, validation -> redirection) ;
+- avec les boutons précédent/suivant du navigateur.
 
 INSTALLATION
 ------------
-1. Extraire ce zip à la racine du projet (remplacer les fichiers).
-2. pip install -r requirements.txt
-3. python manage.py migrate
-4. Dans .env (JAMAIS dans Git) :
-       GROQ_API_KEY=gsk_xxxxxxxx     (clé gratuite : console.groq.com)
-   Optionnel, pour les images :
-       GEMINI_API_KEY=AIza-xxx       (gratuit : aistudio.google.com)
-5. Redémarrer. Sur le serveur : sudo systemctl restart afya
+1. Extraire ce zip à la racine du projet (remplace templates/base.html).
+2. En local : git add templates/base.html && git commit && git push
+3. Sur le serveur :
+       cd /var/www/afya-app && git pull
+       sudo systemctl restart afya
+   (pas de migration, pas de pip install — juste le template)
 
-RAPPEL SECURITE
----------------
-Ne jamais commiter le .env ni « Mot de passe hebergeur afya.docx ».
-Les identifiants serveur/base ayant circulé dans nos échanges,
-pense à les changer quand tu pourras.
-
-FICHIERS
---------
-- apps/assistant/... (12 fichiers) + templates/assistant/index.html
-- apps/reports/services.py  (références #id pour les actions)
-- config/settings/base.py   (app + réglages IA)
-- config/urls.py            (route /assistant/)
-- templates/base.html       (entrée « Assistant IA » dans le menu)
-- requirements.txt          (+ python-docx, pypdf)
-
-TESTS : 24/24 OK (verrou, jetons, permissions, documents, upload,
-téléchargements protégés, messages d'erreur par cause).
+NOTE : les pages « Assistant » et « Rapports » qui affichent une
+erreur 500 sont un problème SÉPARÉ, en cours de diagnostic — la trace
+exacte du serveur (journalctl) permettra de le corriger.

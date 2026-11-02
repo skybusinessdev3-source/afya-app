@@ -356,7 +356,7 @@
 {% if user.is_authenticated %}
 <!-- ================= SPLASH (à chaque actualisation) ================= -->
 <div id="app-splash" class="fixed inset-0 z-[9999] flex items-center justify-center cursor-pointer select-none"
-     style="background:#02100a; transition: opacity .45s ease;">
+     style="background:#02100a; transition: opacity .45s ease; display:none;">
     <style>
         #app-splash .sp-halo { position:absolute; border-radius:50%; filter:blur(80px); opacity:.35; animation:spHalo 8s ease-in-out infinite; }
         @keyframes spHalo { 0%,100%{transform:translate(0,0) scale(1);} 50%{transform:translate(40px,-30px) scale(1.15);} }
@@ -401,6 +401,24 @@
 (function () {
     var splash = document.getElementById('app-splash');
     if (!splash) return;
+    // Le splash ne s'affiche qu'au LANCEMENT de l'app (nouvel onglet / PWA)
+    // ou à une ACTUALISATION (F5) — jamais lors d'une navigation interne
+    // (lien, retour arrière, redirection après une action).
+    var type = 'navigate';
+    try {
+        var nav = performance.getEntriesByType('navigation')[0];
+        if (nav && nav.type) {
+            type = nav.type;
+        } else if (performance.navigation && performance.navigation.type === 1) {
+            type = 'reload';
+        }
+    } catch (e) {}
+    var dejaVu = false;
+    try { dejaVu = !!sessionStorage.getItem('afya_splash_vu'); } catch (e) {}
+    var afficher = (type === 'reload') || (type === 'navigate' && !dejaVu);
+    if (!afficher) { splash.remove(); return; }
+    try { sessionStorage.setItem('afya_splash_vu', '1'); } catch (e) {}
+    splash.style.display = 'flex';
     var done = false;
     function hideSplash() {
         if (done) return;
