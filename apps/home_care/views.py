@@ -1,5 +1,5 @@
 import json
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
@@ -15,7 +15,8 @@ from apps.finance.models import Invoice, Payment
 from apps.finance.views import _creance_info
 from apps.patients.models import Patient
 from apps.settings_app.models import Staff
-from .models import HomeCareService, HomeCarePaymentSplit, split_home_care_payment
+from apps.reports.services import _entreprise_solidaire
+from .models import HomeCareService, HomeCarePaymentSplit, split_home_care_payment, get_active_home_care_split
 
 
 def get_client_ip(request):
@@ -30,7 +31,7 @@ def home_care_page(request):
 
     records = HomeCareService.objects.filter(
         date__gte=month_start
-    ).select_related('patient', 'doctor', 'invoice').order_by('-date')
+    ).select_related('patient', 'patient__company', 'doctor', 'invoice').order_by('-date')
 
     # Splits payés par facture (la répartition = f(montant payé), jamais prescrit)
     splits_by_invoice = {}
@@ -46,6 +47,11 @@ def home_care_page(request):
     parts_attente_total = Decimal('0')
     for r in records:
         doc, cen = splits_by_invoice.get(r.invoice_id, (Decimal('0'), Decimal('0')))
+        # Entreprise partenaire (pas encore payée) : le centre avance la part
+        # médecin — calculée sur le FACTURÉ avec la répartition active.
+        if doc == 0 and r.invoice_id and _entreprise_solidaire(r.patient):
+            doc_pct, _cen_pct = get_active_home_care_split(r.service_type)
+            doc = (r.invoice.amount_usd * doc_pct / 100).quantize(Decimal('0.01'))
         records_data.append({'r': r, 'doc': doc, 'cen': cen})
         # Part médecin pas encore marquée « versée » (mois affiché)
         if doc > 0 and not r.doctor_paid:
@@ -85,13 +91,21 @@ def patient_status(request):
         doc_total += s.doctor_amount_usd
         cen_total += s.center_amount_usd
 
+    # Prix d'une séance (facturé ÷ prescrites) — sert au calcul auto du
+    # nombre de séances couvertes par un paiement.
+    prix_seance = None
+    if invoice and invoice.amount_usd and service.sessions_prescribed:
+        prix_seance = float((invoice.amount_usd / service.sessions_prescribed).quantize(Decimal('0.01')))
+
     return JsonResponse({
         'has_service': True,
         'service_id': service.id,
         'doctor': str(service.doctor) if service.doctor else '—',
         'sessions_done': service.sessions_done,
+        'sessions_paid': service.sessions_paid,
         'sessions_prescribed': service.sessions_prescribed,
         'sessions_remaining': service.sessions_remaining,
+        'prix_seance_usd': prix_seance,
         'billed': f"{invoice.amount_original} {invoice.currency_original}" if invoice else '—',
         'paid_usd': float(paid),
         'balance_usd': float(invoice.balance_usd) if invoice else 0,
@@ -120,10 +134,6 @@ def home_care_create(request):
                 return JsonResponse({'success': False,
                                      'message': "Toutes les séances prescrites sont déjà effectuées."},
                                     status=400)
-            service.sessions_done += 1
-            service.save(update_fields=['sessions_done'])
-            log_event(user=request.user, action=AuditLog.Actions.UPDATE,
-                      module='home_care', obj=service, ip_address=get_client_ip(request))
 
             cur1 = data.get('paid_currency', 'USD')
             paiements = [
@@ -132,6 +142,7 @@ def home_care_create(request):
                  data.get('paid_currency2') or ('FC' if cur1 == 'USD' else 'USD')),
             ]
             paiements = [(a, c) for a, c in paiements if a > 0]
+            total_paye_usd = Decimal('0')
             if paiements:
                 if not service.invoice:
                     return JsonResponse({'success': False,
@@ -146,14 +157,40 @@ def home_care_create(request):
                     )
                     # Répartition sur le MONTANT PAYÉ (figée au taux du paiement)
                     split_home_care_payment(payment)
+                    total_paye_usd += payment.amount_usd
                     log_event(user=request.user, action=AuditLog.Actions.CREATE,
                               module='finance', obj=payment, ip_address=get_client_ip(request))
 
+            # Combien de séances ce passage couvre-t-il ?
+            # 1) champ « payé pour combien de séances » s'il est rempli,
+            # 2) sinon calcul auto = montant payé ÷ prix d'une séance,
+            # 3) sinon 1 (séance faite sans paiement).
+            try:
+                n = int(data.get('sessions_payees') or 0)
+            except (TypeError, ValueError):
+                n = 0
+            if n <= 0 and total_paye_usd > 0 and service.invoice \
+                    and service.invoice.amount_usd and service.sessions_prescribed:
+                prix_seance = service.invoice.amount_usd / service.sessions_prescribed
+                n = int((total_paye_usd / prix_seance).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+            n = max(n, 1)
+            n = min(n, service.sessions_prescribed - service.sessions_done)
+
+            service.sessions_done += n
+            update = ['sessions_done']
+            if total_paye_usd > 0:
+                service.sessions_paid = min(service.sessions_paid + n, service.sessions_prescribed)
+                update.append('sessions_paid')
+            service.save(update_fields=update)
+            log_event(user=request.user, action=AuditLog.Actions.UPDATE,
+                      module='home_care', obj=service, ip_address=get_client_ip(request))
+
             return JsonResponse({
                 'success': True,
-                'message': f"Séance {service.sessions_done}/{service.sessions_prescribed} "
-                           f"enregistrée pour {service.patient.full_name}.",
+                'message': (f"{n} séance(s) enregistrée(s) pour {service.patient.full_name} "
+                            f"— {service.sessions_done}/{service.sessions_prescribed} effectuées."),
                 'sessions_done': service.sessions_done,
+                'sessions_paid': service.sessions_paid,
                 'sessions_remaining': service.sessions_remaining,
                 'creance': _creance_info(service.invoice),
             })
@@ -208,6 +245,7 @@ def home_care_create(request):
             (Decimal(str(data.get('amount_paid2', '0') or '0')),
              data.get('paid_currency2') or ('FC' if cur1 == 'USD' else 'USD')),
         ]
+        total_paye_usd = Decimal('0')
         for amount_paid, cur in [(a, c) for a, c in paiements if a > 0]:
             payment = Payment.objects.create(
                 invoice=invoice,
@@ -217,8 +255,18 @@ def home_care_create(request):
                 received_by=request.user,
             )
             split_home_care_payment(payment)  # répartition sur le montant payé
+            total_paye_usd += payment.amount_usd
             log_event(user=request.user, action=AuditLog.Actions.CREATE,
                       module='finance', obj=payment, ip_address=get_client_ip(request))
+
+        # Séances déjà couvertes par le premier versement
+        # (ex. le patient paie 5 séances d'un coup à la création).
+        if total_paye_usd > 0 and invoice.amount_usd and service.sessions_prescribed:
+            prix_seance = invoice.amount_usd / service.sessions_prescribed
+            n_payees = int((total_paye_usd / prix_seance).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+            if n_payees > 0:
+                service.sessions_paid = min(n_payees, service.sessions_prescribed)
+                service.save(update_fields=['sessions_paid'])
 
         return JsonResponse({
             'success': True,

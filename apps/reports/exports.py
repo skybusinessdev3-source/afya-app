@@ -93,6 +93,11 @@ def build_pdf(vue, report):
         el.append(Paragraph('Dépenses', styles['h2']))
         for line in (report['expense_lines'] or ['—']):
             el.append(Paragraph(line.replace('*', '').replace('_', ''), styles['body']))
+        if report.get('parts_versees_lines'):
+            el.append(Paragraph('Parts prescripteurs versées (sorties de caisse)', styles['h2']))
+            for line in report['parts_versees_lines']:
+                el.append(Paragraph(line.replace('*', '').replace('_', ''), styles['body']))
+            el.append(Paragraph(f"Total versé : {report['parts_versees_total']}", styles['body']))
 
     # --- Solde encadré ---
     el.append(Spacer(1, 8))
@@ -159,8 +164,9 @@ def build_excel(vue, report):
         put(row, 1, 'Libellé', bold=True); put(row, 2, 'Montant', bold=True)
         style_header(ws.cell(row=row, column=1)); style_header(ws.cell(row=row, column=2))
         row += 1
-        if report['expense_lines']:
-            for line in report['expense_lines']:
+        expense_lines = report.get('expense_lines') or []
+        if expense_lines:
+            for line in expense_lines:
                 # ligne type "* X : _Y_" → libellé / montant
                 clean = line.replace('*', '').replace('_', '').strip()
                 libelle, _, montant = clean.partition(' : ')
@@ -169,6 +175,19 @@ def build_excel(vue, report):
             put(row, 1, '—'); put(row, 2, '0'); row += 1
         put(row, 1, 'TOTAL DÉPENSES', bold=True, fill=XL_LIGHT)
         put(row, 2, report['total_depenses'], bold=True, fill=XL_LIGHT); row += 2
+
+        # Parts prescripteurs versées (sorties de caisse — soustraites du solde)
+        if report.get('parts_versees_lines'):
+            put(row, 1, 'PARTS PRESCRIPTEURS VERSÉES', bold=True, fill=XL_LIGHT); row += 1
+            put(row, 1, 'Prescripteur', bold=True); put(row, 2, 'Montant', bold=True)
+            style_header(ws.cell(row=row, column=1)); style_header(ws.cell(row=row, column=2))
+            row += 1
+            for line in report['parts_versees_lines']:
+                clean = line.replace('*', '').replace('_', '').strip()
+                libelle, _, montant = clean.partition(' : ')
+                put(row, 1, libelle); put(row, 2, montant); row += 1
+            put(row, 1, 'TOTAL VERSÉ', bold=True, fill=XL_LIGHT)
+            put(row, 2, report['parts_versees_total'], bold=True, fill=XL_LIGHT); row += 2
     else:
         put(row, 1, 'DÉTAIL PAR MOIS', bold=True, fill=XL_LIGHT); row += 1
         headers = ['Mois', 'Patients', 'Séances', 'Perçus', 'Dépenses']
@@ -206,7 +225,9 @@ def build_excel(vue, report):
 
 def build_company_excel(report):
     """Excel calqué sur « ANNEXE LTJ JUILLET 2026.xlsx » :
-    Noms | Pharmacie & Autres | Nbre Préscrit | Effectué | Restant | Cout | Date | Observation.
+    Noms | Pharmacie & Autres | Nbre Préscrit | Effectué | Restant | Cout |
+    Date | Observation. (Les consultations/évaluations entrent dans
+    « Pharmacie & Autres », détaillées dans l'observation.)
     """
     wb = Workbook()
     ws = wb.active
@@ -232,8 +253,8 @@ def build_company_excel(report):
     c.font = Font(bold=True, size=14, color='075931')
 
     # En-têtes
-    headers = ['Noms Patients', 'Pharmacie & Autres', 'Nbre Préscrit', 'Effectué',
-               'Restant', 'Cout', 'Date', 'Observation']
+    headers = ['Noms Patients', 'Pharmacie & Autres',
+               'Nbre Préscrit', 'Effectué', 'Restant', 'Cout', 'Date', 'Observation']
     for i, h in enumerate(headers, 1):
         put(2, i, h, bold=True, align='center')
         ws.cell(row=2, column=i).font = Font(bold=True, color='FFFFFF')
@@ -268,7 +289,7 @@ def build_company_excel(report):
     put(row, 6, float(report['total_general']), bold=True, align='center')
     put(row, 8, report['cloture'], bold=True)
 
-    for i, w in enumerate([26, 17, 13, 10, 9, 14, 15, 30], 1):
+    for i, w in enumerate([26, 17, 13, 10, 9, 14, 15, 40], 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
     buf = BytesIO()

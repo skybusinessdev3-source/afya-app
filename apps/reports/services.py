@@ -54,6 +54,101 @@ def _ventilation(payments):
     return vent
 
 
+# ================= ENTREPRISES SOLIDAIRES =================
+# Un patient d'une entreprise partenaire (LTJ, GGA…) peut payer en retard :
+# le CENTRE avance alors la part du prescripteur/médecin — elle est calculée
+# sur le FACTURÉ (ratio 1), pas sur l'encaissé.
+# Exceptions : « Famille » (on ne paie rien, on ne rembourse rien) et
+# « Privée » (le patient paie lui-même, comme avant).
+
+ENTREPRISES_SANS_AVANCE = ('famille', 'privée', 'privee')
+
+
+def _entreprise_solidaire(patient):
+    """True si le patient relève d'une entreprise partenaire (sauf Famille/Privée)."""
+    company = getattr(patient, 'company', None)
+    if company is None:
+        return False
+    return company.name.strip().lower() not in ENTREPRISES_SANS_AVANCE
+
+
+def _ratio_part(record):
+    """Ratio appliqué à la part du prescripteur :
+    1 (facturé complet, le centre avance) pour les patients d'entreprises
+    partenaires, sinon le ratio réellement encaissé de la facture."""
+    if _entreprise_solidaire(getattr(record, 'patient', None)):
+        return Decimal('1')
+    return ratio_paye(record.invoice)
+
+
+def _part_domicile(service, parts_dom):
+    """Part médecin d'une prestation de soins à domicile :
+    splits figés sur l'encaissé — sauf entreprise partenaire, où le centre
+    avance la part complète (config actuelle, faute de paiement figé)."""
+    if (_entreprise_solidaire(getattr(service, 'patient', None))
+            and service.invoice_id and service.invoice.status != 'CANCELLED'):
+        from apps.home_care.models import get_active_home_care_split
+        doc_pct, _center_pct = get_active_home_care_split(
+            getattr(service, 'service_type', 'SOINS'))
+        return (service.invoice.amount_usd * doc_pct / 100).quantize(Decimal('0.01'))
+    return parts_dom.get(service.invoice_id, Decimal('0'))
+
+
+# ================= PARTS PRESCRIPTEURS VERSÉES (sorties de caisse) =================
+
+def _parts_versees(d1, d2=None):
+    """Parts prescripteurs/médecins marquées « versées » entre d1 et d2 inclus
+    (la date de versement compte, pas la date de l'acte).
+    Retourne (lignes par prescripteur, total USD)."""
+    if d2 is None:
+        d2 = d1
+    par_presc = {}
+
+    def _touch(name, kind, montant):
+        if montant <= 0:
+            return
+        e = par_presc.setdefault(name, {'total': Decimal('0'),
+                                        'Labo': 0, 'Médecine': 0, 'Domicile': 0})
+        e['total'] += montant
+        e[kind] += 1
+
+    for r in (LaboratoryRecord.objects
+              .filter(prescriber_paid=True,
+                      prescriber_paid_on__gte=d1, prescriber_paid_on__lte=d2)
+              .select_related('patient__company', 'invoice')
+              .prefetch_related('invoice__payments')):
+        _touch(_prescriber_display(r), 'Labo',
+               (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01')))
+
+    for r in (MedicineRecord.objects
+              .filter(prescriber_paid=True,
+                      prescriber_paid_on__gte=d1, prescriber_paid_on__lte=d2)
+              .select_related('patient__company', 'invoice')
+              .prefetch_related('invoice__payments')):
+        _touch(_prescriber_display(r), 'Médecine',
+               (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01')))
+
+    dom_services = list(HomeCareService.objects
+                        .filter(doctor_paid=True,
+                                doctor_paid_on__gte=d1, doctor_paid_on__lte=d2)
+                        .select_related('doctor', 'patient__company', 'invoice'))
+    parts_dom = _splits_domicile_par_facture(dom_services)
+    for s in dom_services:
+        if not s.doctor_id:
+            continue
+        _touch(_canon_prescriber(str(s.doctor)), 'Domicile',
+               _part_domicile(s, parts_dom))
+
+    lignes, total = [], Decimal('0')
+    for name, e in sorted(par_presc.items(), key=lambda x: x[0].casefold()):
+        details = ' · '.join(f"{k} ×{v}" for k, v in
+                             (('Labo', e['Labo']), ('Médecine', e['Médecine']),
+                              ('Domicile', e['Domicile'])) if v)
+        lignes.append(f"* {name} : _{_fmt_nombre(e['total'])}$_ ({details})")
+        total += e['total']
+    return lignes, total
+
+
 # ================= AVANCES SÉANCES =================
 # (x/y) dans le rapport = x séances EFFECTUÉES / y séances PAYÉES (avance),
 # et non « y prescrites » : tout le monde ne paie pas de la même manière.
@@ -254,6 +349,9 @@ def daily_report(d):
 
     exp_total = _sums_by_currency(expenses)
     total = _sums_by_currency(payments)
+    # Parts prescripteurs/médecins VERSEES ce jour : l'argent est sorti de
+    # caisse → soustrait du solde (reste en main), détaillé dans son bloc.
+    parts_lines, parts_total = _parts_versees(d)
 
     return {
         'label': d.strftime('%d/%m/%Y'),
@@ -269,7 +367,10 @@ def daily_report(d):
         'total_percus': _fmt(total),
         'expense_lines': [f"* {e.label} : _{e.amount_original} {e.currency_original}_" for e in expenses],
         'total_depenses': _fmt(exp_total),
-        'solde': _fmt({'USD': total['USD'] - exp_total['USD'], 'FC': total['FC'] - exp_total['FC']}),
+        'parts_versees_lines': parts_lines,
+        'parts_versees_total': f"{_fmt_nombre(parts_total)}$",
+        'solde': _fmt({'USD': total['USD'] - exp_total['USD'] - parts_total,
+                       'FC': total['FC'] - exp_total['FC']}),
         'extra': f"Pharmacie : {len(ventes_jour)} vente(s) · "
                  f"Labo : {LaboratoryRecord.objects.filter(date=d).count()} examen(s)",
     }
@@ -294,6 +395,11 @@ def whatsapp_daily(r):
         "*DÉPENSES DU JOUR :*",
         *(r['expense_lines'] or ["—"]),
         f"*Total Dépenses :* _{r['total_depenses']}_", "",
+        # Parts versées aux prescripteurs : sorties de caisse du jour
+        *(["*PARTS PRESCRIPTEURS VERSÉES (déjà sorties de caisse) :*",
+           *r['parts_versees_lines'],
+           f"*Total versé :* _{r['parts_versees_total']}_", ""]
+          if r['parts_versees_lines'] else []),
         "*SOLDE / RESTE EN MAIN :*",
         f"_{r['solde']}_", "",
         "*Cordialement* 🙌",
@@ -357,6 +463,9 @@ def monthly_report(year, month):
     vent = _ventilation(payments)
     exp_total = _sums_by_currency(expenses)
     total = _sums_by_currency(payments)
+    import calendar as _c
+    parts_lines, parts_total = _parts_versees(
+        date_cls(year, month, 1), date_cls(year, month, _c.monthrange(year, month)[1]))
     from django.utils import timezone
     import calendar
     month_name = calendar.month_name[month] if hasattr(calendar, 'month_name') else str(month)
@@ -382,7 +491,10 @@ def monthly_report(year, month):
             date__year=year, date__month=month, category__startswith='MANUAL').count(),
         'expenses_count': expenses.count(),
         'total_depenses': _fmt(exp_total),
-        'solde': _fmt({'USD': total['USD'] - exp_total['USD'], 'FC': total['FC'] - exp_total['FC']}),
+        'parts_versees_count': len(parts_lines),
+        'parts_versees_total': f"{_fmt_nombre(parts_total)}$",
+        'solde': _fmt({'USD': total['USD'] - exp_total['USD'] - parts_total,
+                       'FC': total['FC'] - exp_total['FC']}),
         'lab_count': LaboratoryRecord.objects.filter(date__year=year, date__month=month).count(),
         'sales_count': PharmacySale.objects.filter(date__year=year, date__month=month).count(),
         'home_care_count': HomeCareService.objects.filter(date__year=year, date__month=month).count(),
@@ -403,7 +515,11 @@ def whatsapp_monthly(r):
         f"*LABORATOIRE* : _{r['laboratory']}_ ({r['lab_count']} examens)",
         f"*SOINS À DOMICILE* : _{r['home_care']}_ ({r['home_care_count']} prestations)",
         f"*TOTAL PERÇUS* : _{r['total_percus']}_", "",
-        f"*DÉPENSES ({r['expenses_count']})* : _{r['total_depenses']}_", "",
+        f"*DÉPENSES ({r['expenses_count']})* : _{r['total_depenses']}_",
+        # Parts versées aux prescripteurs pendant le mois (sorties de caisse)
+        *([f"*Parts prescripteurs versées ({r['parts_versees_count']})* : _{r['parts_versees_total']}_"]
+          if r['parts_versees_count'] else []),
+        "",
         "*SOLDE NET DU MOIS :*",
         f"_{r['solde']}_", "",
         "*Cordialement* 🙌",
@@ -414,12 +530,14 @@ def whatsapp_monthly(r):
 # ================= ANNUEL =================
 
 def annual_report(year):
+    import calendar as _cal
     MOIS = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet',
             'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
     months = []
     tot_percus = {'USD': 0, 'FC': 0}
     tot_dep = {'USD': 0, 'FC': 0}
     tot_patients = 0
+    tot_parts = Decimal('0')
 
     for m in range(1, 13):
         payments = Payment.objects.filter(date__year=year, date__month=m, status='VALID')
@@ -427,9 +545,12 @@ def annual_report(year):
         sessions = Session.objects.filter(date__year=year, date__month=m)
         per = _sums_by_currency(payments)
         dep = _sums_by_currency(expenses)
+        _, parts_m = _parts_versees(date_cls(year, m, 1),
+                                    date_cls(year, m, _cal.monthrange(year, m)[1]))
         patients = sessions.values('patient').distinct().count()
         tot_percus['USD'] += per['USD']; tot_percus['FC'] += per['FC']
         tot_dep['USD'] += dep['USD']; tot_dep['FC'] += dep['FC']
+        tot_parts += parts_m
         tot_patients += patients
         months.append({
             'num': m, 'name': MOIS[m],
@@ -444,7 +565,8 @@ def annual_report(year):
         'patients_total': tot_patients,
         'total_percus': _fmt(tot_percus),
         'total_depenses': _fmt(tot_dep),
-        'solde': _fmt({'USD': tot_percus['USD'] - tot_dep['USD'],
+        'parts_versees_total': f"{_fmt_nombre(tot_parts)}$",
+        'solde': _fmt({'USD': tot_percus['USD'] - tot_dep['USD'] - tot_parts,
                        'FC': tot_percus['FC'] - tot_dep['FC']}),
     }
 
@@ -455,7 +577,8 @@ def whatsapp_annual(r):
         "Bonsoir à tous,", "",
         f"Bilan de l'année : {r['patients_total']} passages patients au total.", "",
         "*TOTAL PERÇUS* : _" + r['total_percus'] + "_",
-        "*TOTAL DÉPENSES* : _" + r['total_depenses'] + "_", "",
+        "*TOTAL DÉPENSES* : _" + r['total_depenses'] + "_",
+        "*Parts prescripteurs versées* : _" + r['parts_versees_total'] + "_", "",
         "*SOLDE NET DE L'ANNÉE :*",
         f"_{r['solde']}_", "",
         "*Cordialement* 🙌",
@@ -492,7 +615,8 @@ def company_report(company, year, month):
     last_day = _cal.monthrange(year, month)[1]
 
     rows = []
-    tot = {'pharmacie': Decimal('0'), 'prescrit': 0, 'effectue': 0,
+    tot = {'pharmacie': Decimal('0'),
+           'prescrit': 0, 'effectue': 0,
            'restant': 0, 'cout': Decimal('0')}
 
     for p in company.patients.all():
@@ -507,14 +631,45 @@ def company_report(company, year, month):
             continue  # aucune activité ce mois → hors rapport
 
         # « Pharmacie & Autres » = facturé hors séances (pharmacie, labo,
-        # médecine, domicile) — la créance naît à la FACTURATION (pas au paiement)
+        # médecine, domicile) — la créance naît à la FACTURATION (pas au paiement).
+        # Les factures « centre » (consultations/évaluations) sont rattachées
+        # par date aux passages non-kiné, puis fusionnées dans cette colonne.
         pharmacie = Decimal('0')
+        factures_centre = []
         for inv in invoices:
             if (inv.label.startswith('Pharmacie') or inv.lab_records.exists()
                     or inv.home_care_services.exists() or inv.medicine_records.exists()):
                 pharmacie += inv.amount_usd
+            else:
+                factures_centre.append(inv)
 
-        effectue = sessions_m.count()
+        # Séances kiné (compteur) VS autres passages au centre
+        # (consultation, évaluation…) — facturés à l'entreprise aussi.
+        sessions_kine = [s for s in sessions_m if s.motif == 'KINE']
+        sessions_autres = [s for s in sessions_m if s.motif != 'KINE']
+        jours_autres = {s.date for s in sessions_autres}
+
+        # Consultations/évaluations facturées : factures centre des jours où le
+        # patient est passé pour AUTRE CHOSE qu'une séance kiné.
+        consult = Decimal('0')
+        consult_details = []
+        vues = set()
+        for s in sessions_autres:
+            for inv in factures_centre:
+                if inv.date == s.date and inv.id not in vues:
+                    vues.add(inv.id)
+                    consult += inv.amount_usd
+                    motif = (s.motif_other.strip()
+                             if s.motif == 'OTHER' and s.motif_other.strip()
+                             else s.get_motif_display())
+                    consult_details.append(
+                        f"{motif} {_fmt_nombre(inv.amount_usd)}$ le {s.date:%d/%m}")
+
+        # « Pharmacie & Autres » englobe AUSSI les consultations/évaluations :
+        # pas de colonne séparée — le détail jour par jour part en observation.
+        pharmacie += consult
+
+        effectue = len(sessions_kine)
         prescrit = p.sessions_prescribed
         restant = max(prescrit - effectue, 0)
         prix = _prix_seance(p)
@@ -531,7 +686,8 @@ def company_report(company, year, month):
             date_txt = '—'
 
         obs = []
-        obs.append("Séances en cours" if restant > 0 else "Séances terminées")
+        if prescrit or effectue:
+            obs.append("Séances en cours" if restant > 0 else "Séances terminées")
 
         a_pharmacie = False
         a_labo = False
@@ -549,8 +705,12 @@ def company_report(company, year, month):
         if a_labo:
             obs.append("Labo")
 
+        # Détail des consultations/évaluations facturées (« Évaluation 10$ le 02/11 »)
+        obs.extend(consult_details)
+
         rows.append({
-            'patient': p, 'pharmacie': pharmacie, 'prescrit': prescrit,
+            'patient': p, 'pharmacie': pharmacie,
+            'prescrit': prescrit,
             'effectue': effectue, 'restant': restant, 'prix': prix,
             'cout': cout, 'cout_txt': f"{_fmt_nombre(prix)}x{effectue}={_fmt_nombre(cout)}",
             'date_txt': date_txt, 'observation': ' + '.join(obs),
@@ -682,10 +842,11 @@ def prescribers_summary(d1, d2):
         if name.startswith('Dr. ') and not entry['name'].startswith('Dr. '):
             entry['name'] = name
         entry[f'{kind}_count'] += 1
-        # Part sur l'ENCAISSÉ, pas le facturé (arrondie comme au rapport détaillé)
+        # Part sur l'ENCAISSÉ (arrondie comme au rapport détaillé) — SAUF
+        # patient d'entreprise partenaire : le centre avance, part sur le facturé.
         part = ((record.prescriber_amount_usd or Decimal('0'))
-                * ratio_paye(record.invoice)).quantize(Decimal('0.01'),
-                                                       rounding=ROUND_HALF_UP)
+                * _ratio_part(record)).quantize(Decimal('0.01'),
+                                                rounding=ROUND_HALF_UP)
         entry[f'{kind}_share'] += part
         # Suivi du versement : déjà payée au prescripteur ou encore à verser
         if getattr(record, 'prescriber_paid', False):
@@ -695,24 +856,25 @@ def prescribers_summary(d1, d2):
 
     for r in (LaboratoryRecord.objects
               .filter(date__gte=d1, date__lte=d2)
-              .select_related('prescriber', 'invoice')
+              .select_related('prescriber', 'invoice', 'patient__company')
               .prefetch_related('invoice__payments')):
         _touch(r, 'labo')
     for r in (MedicineRecord.objects.filter(date__gte=d1, date__lte=d2)
-              .select_related('invoice')
+              .select_related('invoice', 'patient__company')
               .prefetch_related('invoice__payments')):
         _touch(r, 'med')
 
     # Soins à domicile : la part du médecin traitant vient des splits figés
-    # (sur l'encaissé). Une part déjà « versée » n'est plus comptée comme due.
+    # (sur l'encaissé) — ou du facturé complet si entreprise partenaire
+    # (le centre avance). Une part déjà « versée » n'est plus comptée comme due.
     dom_services = list(HomeCareService.objects
                         .filter(date__gte=d1, date__lte=d2)
-                        .select_related('doctor', 'patient', 'invoice'))
+                        .select_related('doctor', 'patient__company', 'invoice'))
     parts_dom = _splits_domicile_par_facture(dom_services)
     for s in dom_services:
         if not s.doctor_id:
             continue
-        part = parts_dom.get(s.invoice_id, Decimal('0'))
+        part = _part_domicile(s, parts_dom)
         if part <= 0:
             continue                       # rien d'encaissé → rien à verser
         name = _canon_prescriber(str(s.doctor))
@@ -754,7 +916,7 @@ def prescriber_report(key, d1, d2):
 
     for r in (LaboratoryRecord.objects
               .filter(date__gte=d1, date__lte=d2)
-              .select_related('prescriber', 'patient', 'exam', 'invoice')
+              .select_related('prescriber', 'patient__company', 'exam', 'invoice')
               .prefetch_related('invoice__payments')):
         name = _prescriber_display(r)
         if _norm_prescriber_name(name) != key_norm:
@@ -762,24 +924,29 @@ def prescriber_report(key, d1, d2):
         if display_name is None or (name.startswith('Dr. ')
                                     and not display_name.startswith('Dr. ')):
             display_name = name
+        # Entreprise partenaire : part complète même si la facture n'est pas
+        # encore soldée — le centre avance (créance sur l'entreprise).
+        avancee = _entreprise_solidaire(r.patient) and ratio_paye(r.invoice) < 1
+        part = (r.prescriber_amount_usd * _ratio_part(r)).quantize(Decimal('0.01'))
         rows.append({
             'date': r.date, 'date_txt': _date_txt(r.date),
             'activite': 'Labo',
             'patient': r.patient.full_name,
             'detail': r.exam.name,
             'montant_usd': r.amount_usd,
-            'part_usd': (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01')),
+            'part_usd': part,
             'montant_txt': _fmt_nombre(r.amount_usd),
-            'part_txt': _fmt_nombre(
-                (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))),
+            'part_txt': _fmt_nombre(part),
             'prescriber_paid': bool(r.prescriber_paid),
-            'part_statut': 'Versée' if r.prescriber_paid else 'En attente',
+            'part_statut': ('Versée' if r.prescriber_paid
+                            else 'En attente — avancée par le centre' if avancee
+                            else 'En attente'),
             'observation': r.observation or '',
         })
 
     for r in (MedicineRecord.objects
               .filter(date__gte=d1, date__lte=d2)
-              .select_related('patient', 'invoice')
+              .select_related('patient__company', 'invoice')
               .prefetch_related('invoice__payments')):
         name = _prescriber_display(r)
         if _norm_prescriber_name(name) != key_norm:
@@ -787,25 +954,29 @@ def prescriber_report(key, d1, d2):
         if display_name is None or (name.startswith('Dr. ')
                                     and not display_name.startswith('Dr. ')):
             display_name = name
+        avancee = _entreprise_solidaire(r.patient) and ratio_paye(r.invoice) < 1
+        part = (r.prescriber_amount_usd * _ratio_part(r)).quantize(Decimal('0.01'))
         rows.append({
             'date': r.date, 'date_txt': _date_txt(r.date),
             'activite': 'Méd. manuelle' if _med_family(r.category) == 'manuelle' else 'Méd. générale',
             'patient': r.patient.full_name,
             'detail': _med_detail(r),
             'montant_usd': r.amount_usd,
-            'part_usd': (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01')),
+            'part_usd': part,
             'montant_txt': _fmt_nombre(r.amount_usd),
-            'part_txt': _fmt_nombre(
-                (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))),
+            'part_txt': _fmt_nombre(part),
             'prescriber_paid': bool(r.prescriber_paid),
-            'part_statut': 'Versée' if r.prescriber_paid else 'En attente',
+            'part_statut': ('Versée' if r.prescriber_paid
+                            else 'En attente — avancée par le centre' if avancee
+                            else 'En attente'),
             'observation': r.observation or '',
         })
 
-    # Soins à domicile : part du médecin traitant (splits figés sur l'encaissé)
+    # Soins à domicile : part du médecin traitant (splits figés sur l'encaissé,
+    # ou facturé complet avancé par le centre si entreprise partenaire)
     dom_services = list(HomeCareService.objects
                         .filter(date__gte=d1, date__lte=d2)
-                        .select_related('doctor', 'patient', 'invoice'))
+                        .select_related('doctor', 'patient__company', 'invoice'))
     parts_dom = _splits_domicile_par_facture(dom_services)
     for s in dom_services:
         if not s.doctor_id:
@@ -813,7 +984,7 @@ def prescriber_report(key, d1, d2):
         name = _canon_prescriber(str(s.doctor))
         if _norm_prescriber_name(name) != key_norm:
             continue
-        part = parts_dom.get(s.invoice_id, Decimal('0'))
+        part = _part_domicile(s, parts_dom)
         if part <= 0:
             continue
         if display_name is None or (name.startswith('Dr. ')
@@ -823,6 +994,8 @@ def prescriber_report(key, d1, d2):
                   if getattr(s, 'service_type', 'SOINS') == 'CONSULTATION'
                   else f"Soins à domicile — {s.sessions_done}/{s.sessions_prescribed} séance(s)")
         montant = s.invoice.amount_usd if s.invoice else Decimal('0')
+        avancee = (_entreprise_solidaire(s.patient)
+                   and (s.invoice is None or ratio_paye(s.invoice) < 1))
         rows.append({
             'date': s.date, 'date_txt': _date_txt(s.date),
             'activite': 'Domicile',
@@ -833,7 +1006,9 @@ def prescriber_report(key, d1, d2):
             'montant_txt': _fmt_nombre(montant),
             'part_txt': _fmt_nombre(part),
             'prescriber_paid': bool(getattr(s, 'doctor_paid', False)),
-            'part_statut': 'Versée' if getattr(s, 'doctor_paid', False) else 'En attente',
+            'part_statut': ('Versée' if getattr(s, 'doctor_paid', False)
+                            else 'En attente — avancée par le centre' if avancee
+                            else 'En attente'),
             'observation': s.observation or '',
         })
 

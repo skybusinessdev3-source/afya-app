@@ -353,6 +353,67 @@
 
 <body class="bg-gray-100 dark:bg-gray-950 text-gray-800 dark:text-gray-100 font-sans antialiased overflow-x-hidden">
 
+{% if user.is_authenticated %}
+<!-- ================= SPLASH (à chaque actualisation) ================= -->
+<div id="app-splash" class="fixed inset-0 z-[9999] flex items-center justify-center cursor-pointer select-none"
+     style="background:#02100a; transition: opacity .45s ease;">
+    <style>
+        #app-splash .sp-halo { position:absolute; border-radius:50%; filter:blur(80px); opacity:.35; animation:spHalo 8s ease-in-out infinite; }
+        @keyframes spHalo { 0%,100%{transform:translate(0,0) scale(1);} 50%{transform:translate(40px,-30px) scale(1.15);} }
+        #app-splash .sp-logo { animation:spLogoIn .9s cubic-bezier(.34,1.56,.64,1) both, spBeat 1.6s ease-in-out 1s infinite; }
+        @keyframes spLogoIn { from{transform:scale(.3) rotate(-10deg); opacity:0;} to{transform:scale(1) rotate(0); opacity:1;} }
+        @keyframes spBeat { 0%,100%{transform:scale(1);} 12%{transform:scale(1.08);} 24%{transform:scale(1);} 36%{transform:scale(1.05);} 48%{transform:scale(1);} }
+        #app-splash .sp-letter { display:inline-block; opacity:0; transform:translateY(24px); animation:spLetter .5s cubic-bezier(.34,1.56,.64,1) forwards; }
+        @keyframes spLetter { to{opacity:1; transform:translateY(0);} }
+        #app-splash .sp-loadbar { animation:spFill 1.5s ease-out .2s forwards; }
+        @keyframes spFill { from{width:0;} to{width:100%;} }
+        #app-splash .sp-fade { animation:spFade .8s ease both; }
+        @keyframes spFade { from{opacity:0;} to{opacity:1;} }
+    </style>
+
+    <!-- Halos d'ambiance -->
+    <div class="sp-halo w-96 h-96 bg-brand-600 top-[-10%] left-[-10%]"></div>
+    <div class="sp-halo w-[28rem] h-[28rem] bg-brand-800 bottom-[-15%] right-[-10%]" style="animation-delay:2s"></div>
+    <div class="sp-halo w-64 h-64 bg-brand-500 top-[40%] right-[20%]" style="animation-delay:4s; opacity:.2"></div>
+
+    <div class="relative z-10 flex flex-col items-center gap-5 px-6">
+        <div class="sp-logo">
+            <div class="w-28 h-28 sm:w-36 sm:h-36 rounded-[2rem] bg-gradient-to-br from-brand-400 to-brand-800 flex items-center justify-center shadow-[0_0_60px_rgba(0,209,102,.5)] border border-brand-300/30 overflow-hidden">
+                {% if center_config and center_config.logo %}
+                <img src="{{ center_config.logo.url }}" alt="CRF-MK" class="w-20 h-20 sm:w-24 sm:h-24 object-contain">
+                {% else %}
+                <svg class="w-16 h-16" viewBox="0 0 100 100" fill="none">
+                    <path d="M5 55 H25 L33 30 L42 75 L50 45 L55 55 H70 L75 48 L80 55 H95"
+                          stroke="#ffffff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                {% endif %}
+            </div>
+        </div>
+        <h1 class="text-3xl sm:text-5xl font-black tracking-widest text-white">
+            {% for letter in "CRF-MK" %}<span class="sp-letter" style="animation-delay: {{ forloop.counter0|add:4 }}00ms">{{ letter }}</span>{% endfor %}
+        </h1>
+        <div class="w-52 sm:w-64 h-1.5 rounded-full bg-white/10 overflow-hidden sp-fade" style="animation-delay:.3s">
+            <div class="sp-loadbar h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-300"></div>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    var splash = document.getElementById('app-splash');
+    if (!splash) return;
+    var done = false;
+    function hideSplash() {
+        if (done) return;
+        done = true;
+        splash.style.opacity = '0';
+        setTimeout(function () { splash.remove(); }, 500);
+    }
+    setTimeout(hideSplash, 1900);          // disparition auto après l'animation
+    splash.addEventListener('click', hideSplash);  // clic = passer
+})();
+</script>
+{% endif %}
+
 <div class="flex min-h-screen">
 
     <!-- ================= SIDEBAR (desktop) ================= -->

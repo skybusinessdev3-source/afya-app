@@ -1,0 +1,85 @@
+CHANGEMENTS — AFYA APP (correctifs + améliorations) — v2
+========================================================
+Date : 02/11/2026 (v2 : retours du premier test intégrés)
+
+INSTALLATION
+------------
+1. Copier ce zip à la racine du projet (e:\Programmation\App Web\Afya-app)
+2. Extraire à la racine (remplacer les fichiers) :
+   - Windows (PowerShell, dossier du projet) :  tar -xf afya-correctifs-2026-11-02-v2.zip
+   - ou clic droit > « Extraire tout » en choisissant le dossier du projet
+3. Tester en local :
+       python manage.py migrate
+       python manage.py runserver
+4. Si OK, envoyer en ligne :
+       git add apps templates
+       git commit -m "Correctifs parts prescripteurs + paiement mixte centre + séances payées domicile + splash + facturation entreprise"
+       git push
+   Puis sur le serveur :
+       cd /var/www/afya-app && git pull
+       source venv/bin/activate && python manage.py migrate
+       sudo systemctl restart afya
+(Le migrate ajoute juste le champ « séances payées » — aucune donnée existante n'est modifiée.)
+
+CORRECTIONS
+-----------
+1A. Parts prescripteurs versées — enfin visibles et soustraites
+    Avant : quand le prescripteur recevait sa part, les 100$ restaient entiers
+    dans le rapport — impossible à expliquer au Dr. Directeur.
+    Maintenant : dès qu'une part est marquée « versée », elle apparaît dans un
+    bloc dédié « PARTS PRESCRIPTEURS VERSÉES (déjà sorties de caisse) » et elle
+    est soustraite du solde (le « reste en main »), dans :
+      - le rapport du jour (page + WhatsApp + PDF + Excel)
+      - le rapport mensuel (page + WhatsApp + PDF)
+      - le rapport annuel (page + WhatsApp + PDF)
+    Exemple : perçus 100$, part versée 20$ → solde 80$.
+    La date comptée = le jour où l'on marque « versée ».
+
+1B. Paiement en 2 devises au CENTRE
+    Le formulaire envoyait déjà les 2 montants, mais le serveur n'en lisait
+    qu'un. Corrigé : le centre accepte maintenant $ + FC comme le labo et la
+    pharmacie (conversion figée au taux du jour pour chaque montant).
+
+AMÉLIORATIONS
+-------------
+2A. Soins à domicile — « payé pour combien de séances ? »
+    - Nouveau champ dans le formulaire de suivi : le nombre de séances couvertes
+      par le paiement (ex. le patient paie 5 séances d'un coup).
+    - Laissé vide, il est calculé automatiquement : montant payé ÷ prix d'une
+      séance (rappelé dans le formulaire, ex. « 1 séance = 10$ »).
+    - Ces séances sont décomptées des séances à effectuer.
+    - Le tableau affiche « X payée(s) » sous le compteur de séances.
+    - Nécessite : python manage.py migrate (nouveau champ en base).
+
+2B. Page d'entrée à chaque actualisation
+    Le logo CRF-MK animé s'affiche ~2 secondes à chaque F5 / ouverture, sur
+    ordinateur et mobile. Un clic le fait disparaître immédiatement.
+
+2C-bis. Entreprises partenaires — le centre avance la part du prescripteur
+    La part du prescripteur est comptée à 100% dès l'acte pour les patients
+    des entreprises partenaires (mention « En attente — avancée par le centre »).
+    Exceptions (rien n'est avancé) : « Famille » et « Privée ».
+
+2D. Rapport entreprise (LTJ) — consultations et évaluations FACTURÉES  [v2]
+    Deux corrections suite au premier test :
+    a) BUG PRINCIPAL : une consultation/évaluation d'un patient d'entreprise
+       enregistrée SANS paiement ne créait aucune facture → 0 partout.
+       Maintenant : l'acte est automatiquement facturé au prix du service
+       choisi dans le formulaire (le message confirme : « Évaluation facturé
+       à l'entreprise (25$) »). Il apparaît dans le rapport entreprise et
+       dans la créance de l'entreprise.
+       IMPORTANT : il faut choisir le « Service / tarif » dans le formulaire
+       (c'est lui qui donne le prix). Sans service choisi, rien à facturer.
+       Les patients « Famille » et « Privée » ne sont pas concernés.
+    b) Pas de colonne en plus : les montants consultations/évaluations entrent
+       directement dans « Pharmacie & Autres » (page + Excel), et le détail
+       jour par jour s'affiche dans l'Observation
+       (ex. « Séances en cours + Évaluation 25$ le 02/11 »).
+    (Correction au passage : les consultations ne comptent plus comme des
+     séances kiné effectuées.)
+
+CORRECTIF BONUS
+---------------
+- L'export Excel du rapport MENSUEL plantait (erreur serveur) : corrigé.
+
+Fichiers livrés : 12 (dont 1 nouveau : la migration 0004 des soins à domicile).

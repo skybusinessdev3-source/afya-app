@@ -55,6 +55,7 @@ class HomeCareService(TimeStampedModel):
                                related_name='home_care_treatments', verbose_name="Médecin traitant")
     sessions_prescribed = models.PositiveIntegerField(default=1, verbose_name="Séances prescrites")
     sessions_done = models.PositiveIntegerField(default=0, verbose_name="Séances effectuées")
+    sessions_paid = models.PositiveIntegerField(default=0, verbose_name="Séances payées")
     date = models.DateField(default=timezone.localdate)
     invoice = models.ForeignKey('finance.Invoice', null=True, blank=True, on_delete=models.SET_NULL,
                                 related_name='home_care_services')

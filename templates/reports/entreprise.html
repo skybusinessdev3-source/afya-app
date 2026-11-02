@@ -83,7 +83,9 @@
                         <td class="px-4 py-3 text-center">{{ r.restant }}</td>
                         <td class="px-4 py-3 text-center font-semibold">{{ r.cout_txt }}</td>
                         <td class="px-4 py-3 whitespace-nowrap">{{ r.date_txt }}</td>
-                        <td class="px-4 py-3 text-gray-400">{{ r.observation }}</td>
+                        <td class="px-4 py-3 text-gray-400">
+                            {{ r.observation }}
+                        </td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun patient de cette entreprise ce mois-ci.</td></tr>

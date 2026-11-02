@@ -14,6 +14,7 @@ from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment, ratio_paye
 from apps.finance.views import _creance_info
 from apps.patients.models import Patient
+from apps.reports.services import _ratio_part
 from apps.settings_app.models import MedicineSplitConfig, PrescriberConfig, Staff
 from .models import MedicineRecord
 
@@ -28,12 +29,13 @@ def _page(request, categories, title):
     month_start = today.replace(day=1)
     records = list(MedicineRecord.objects.filter(
         category__in=categories, date__gte=month_start
-    ).select_related('patient', 'invoice').prefetch_related('invoice__payments').order_by('-date'))
+    ).select_related('patient', 'patient__company', 'invoice').prefetch_related('invoice__payments').order_by('-date'))
 
-    # Parts sur l'ENCAISSÉ (prorata du paiement de la facture), pas le facturé
+    # Parts centre sur l'ENCAISSÉ (prorata du paiement de la facture) ;
+    # part prescripteur à 100% pour les entreprises partenaires (le centre avance).
     for r in records:
         rt = ratio_paye(r.invoice)
-        r.part_presc_paye = (r.prescriber_amount_usd * rt).quantize(Decimal('0.01'))
+        r.part_presc_paye = (r.prescriber_amount_usd * _ratio_part(r)).quantize(Decimal('0.01'))
         r.part_centre_paye = (r.center_amount_usd * rt).quantize(Decimal('0.01'))
 
     pcts = {}
@@ -175,7 +177,7 @@ def record_create(request):
             'success': True,
             'message': f"{record.get_category_display()} enregistrée pour {patient.full_name}.",
             'splits': {'prescriber': float(
-                           record.prescriber_amount_usd * ratio_paye(record.invoice)),
+                           record.prescriber_amount_usd * _ratio_part(record)),
                        'center': float(
                            record.center_amount_usd * ratio_paye(record.invoice))},
             'creance': _creance_info(invoice),

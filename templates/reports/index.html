@@ -83,7 +83,10 @@
             <div class="space-y-1.5 text-sm">
                 <div class="flex justify-between"><span class="text-gray-400">Perçus</span><b class="text-brand-600 dark:text-brand-400">{{ report.total_percus }}</b></div>
                 <div class="flex justify-between"><span class="text-gray-400">Dépenses</span><b class="text-red-500">{{ report.total_depenses }}</b></div>
-                <div class="flex justify-between pt-1.5 border-t border-gray-200 dark:border-gray-800"><span class="text-gray-400">Solde</span><b>{{ report.solde }}</b></div>
+                {% if report.parts_versees_total and report.parts_versees_total != '0$' %}
+                <div class="flex justify-between"><span class="text-gray-400">Parts prescripteurs versées</span><b class="text-amber-600 dark:text-amber-400">− {{ report.parts_versees_total }}</b></div>
+                {% endif %}
+                <div class="flex justify-between pt-1.5 border-t border-gray-200 dark:border-gray-800"><span class="text-gray-400">Solde (reste en main)</span><b>{{ report.solde }}</b></div>
             </div>
         </div>
     </div>

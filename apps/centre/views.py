@@ -15,6 +15,7 @@ from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Expense, Invoice, Payment
 from apps.finance.views import _creance_info
 from apps.patients.models import Patient
+from apps.reports.services import _entreprise_solidaire
 from apps.settings_app.models import Company, Staff
 from .models import Service, Session
 
@@ -111,9 +112,17 @@ def register_session(request):
         log_event(user=request.user, action=AuditLog.Actions.CREATE,
                   module='centre', obj=session, ip_address=get_client_ip(request))
 
-        # --- Paiement (optionnel) ---
-        amount = Decimal(str(data.get('amount_paid', '0') or '0'))
-        if amount > 0:
+        # --- Paiements (optionnels) — 1 ou 2 devises (paiement mixte $ + FC) ---
+        cur1 = data.get('currency', 'USD')
+        paiements = [
+            (Decimal(str(data.get('amount_paid', '0') or '0')), cur1),
+            (Decimal(str(data.get('amount_paid2', '0') or '0')),
+             data.get('currency2') or ('FC' if cur1 == 'USD' else 'USD')),
+        ]
+        paiements = [(a, c) for a, c in paiements if a > 0]
+        invoice = None
+        if paiements:
+            amount, currency = paiements[0]
             # 1) Cherche la facture ouverte du patient
             invoice = patient.invoices.filter(
                 status__in=[Invoice.Status.OPEN, Invoice.Status.PARTIALLY_PAID]
@@ -126,7 +135,7 @@ def register_session(request):
                     due_amount, due_currency = service.price_usd, 'USD'
                     label = f"{service.name} — {op_date:%d/%m/%Y}"
                 else:
-                    due_amount, due_currency = amount, data.get('currency', 'USD')
+                    due_amount, due_currency = amount, currency
                     # « Autre » → la précision saisie sert de libellé de facture
                     motif_txt = (session.motif_other.strip()
                                  if session.motif == Session.Motif.OTHER
@@ -144,23 +153,56 @@ def register_session(request):
                 log_event(user=request.user, action=AuditLog.Actions.CREATE,
                           module='finance', obj=invoice, ip_address=get_client_ip(request))
 
-            # 3) Le paiement s'ajoute à la facture (n'importe quelle devise)
-            payment = Payment.objects.create(
-                invoice=invoice,
-                amount_original=amount,
-                currency_original=data.get('currency', 'USD'),
-                date=op_date,
-                received_by=request.user,
-            )
-            log_event(user=request.user, action=AuditLog.Actions.CREATE,
-                      module='finance', obj=payment, ip_address=get_client_ip(request))
+            # 3) Les paiements s'ajoutent à la facture (devises libres, taux figé)
+            for amount, currency in paiements:
+                payment = Payment.objects.create(
+                    invoice=invoice,
+                    amount_original=amount,
+                    currency_original=currency,
+                    date=op_date,
+                    received_by=request.user,
+                )
+                log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                          module='finance', obj=payment, ip_address=get_client_ip(request))
+
+        # --- Entreprise partenaire : facturer l'acte MÊME SANS paiement ---
+        # Une consultation/évaluation d'un patient LTJ & co ne laisse aucun
+        # paiement le jour J (l'entreprise paie plus tard) — sans facture,
+        # l'acte n'apparaissait ni en créance ni dans le rapport entreprise.
+        # (Kiné : déjà couvert par « prix × séances » du rapport. Labo : la
+        # page laboratoire crée sa propre facture → on ne double pas.)
+        acte_facture_txt = None
+        if (not paiements and _entreprise_solidaire(patient)
+                and session.motif in (Session.Motif.CONSULTATION,
+                                      Session.Motif.EVALUATION,
+                                      Session.Motif.OTHER)):
+            service = (Service.objects.filter(pk=data['service_id']).first()
+                       if data.get('service_id') else None)
+            if service and service.price_usd > 0:
+                invoice = Invoice.objects.create(
+                    patient=patient,
+                    label=f"{service.name} — {op_date:%d/%m/%Y}",
+                    amount_original=service.price_usd,
+                    currency_original='USD',
+                    date=op_date,
+                    created_by=request.user,
+                )
+                log_event(user=request.user, action=AuditLog.Actions.CREATE,
+                          module='finance', obj=invoice, ip_address=get_client_ip(request))
+                prix_txt = f"{service.price_usd:.2f}".rstrip('0').rstrip('.')
+                acte_facture_txt = (f"{service.name} facturé à l'entreprise "
+                                    f"({prix_txt}$)")
+
+        message = f"Séance enregistrée pour {patient.full_name}."
+        if acte_facture_txt:
+            message += f" {acte_facture_txt}."
 
         return JsonResponse({
             'success': True,
-            'message': f"Séance enregistrée pour {patient.full_name}",
+            'message': message,
             'sessions_done': patient.sessions_done,
             'sessions_remaining': patient.sessions_remaining,
-            'creance': _creance_info(invoice) if amount > 0 else None,
+            'creance': _creance_info(invoice),
         })
 
     except (Patient.DoesNotExist, KeyError):

@@ -14,6 +14,7 @@ from apps.core.utils import can_backdate, parse_operation_date
 from apps.finance.models import Invoice, Payment, ratio_paye
 from apps.finance.views import _creance_info
 from apps.patients.models import Patient
+from apps.reports.services import _ratio_part
 from apps.settings_app.models import LabExam
 from .models import LaboratoryRecord
 
@@ -37,7 +38,7 @@ def lab_page(request):
     month_start = today.replace(day=1)
 
     records = (LaboratoryRecord.objects.filter(date__gte=month_start)
-               .select_related('patient', 'exam', 'invoice')
+               .select_related('patient', 'patient__company', 'exam', 'invoice')
                .prefetch_related('invoice__payments')
                .order_by('-date', 'patient__last_name'))
 
@@ -67,8 +68,9 @@ def lab_page(request):
         if r.invoice_id:
             g['billed_par_invoice'][r.invoice_id] = (
                 g['billed_par_invoice'].get(r.invoice_id, Decimal('0')) + r.amount_usd)
-        rt = ratio_paye(r.invoice)          # parts sur l'ENCAISSÉ, pas le facturé
-        g['prescriber_share'] += (r.prescriber_amount_usd * rt).quantize(Decimal('0.01'))
+        rt = ratio_paye(r.invoice)          # parts labo/centre sur l'ENCAISSÉ
+        rt_presc = _ratio_part(r)           # part prescripteur : 100% si entreprise partenaire (centre avance)
+        g['prescriber_share'] += (r.prescriber_amount_usd * rt_presc).quantize(Decimal('0.01'))
         g['lab_share'] += (r.lab_team_amount_usd * rt).quantize(Decimal('0.01'))
         g['center_share'] += (r.center_amount_usd * rt).quantize(Decimal('0.01'))
     groups = sorted(groups.values(), key=lambda g: (g['date'], g['patient']), reverse=True)
@@ -94,7 +96,7 @@ def lab_page(request):
         if p is None:
             p = presc[k] = {'name': r.prescriber_name.strip() or '— Non renseigné —',
                             'share': Decimal('0'), 'exams': 0, 'patients': set()}
-        p['share'] += (r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))
+        p['share'] += (r.prescriber_amount_usd * _ratio_part(r)).quantize(Decimal('0.01'))
         p['exams'] += 1
         p['patients'].add(r.patient_id)
     prescriber_summary = sorted(
@@ -108,7 +110,7 @@ def lab_page(request):
                      if r.prescriber_amount_usd > 0 and not r.prescriber_paid
                      and (r.prescriber_name or '').strip()]
     parts_attente_total = sum(
-        ((r.prescriber_amount_usd * ratio_paye(r.invoice)).quantize(Decimal('0.01'))
+        ((r.prescriber_amount_usd * _ratio_part(r)).quantize(Decimal('0.01'))
          for r in parts_attente), Decimal('0'))
 
     context = {
